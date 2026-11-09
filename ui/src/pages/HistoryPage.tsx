@@ -22,7 +22,7 @@ export const HistoryPage = () => {
   const [filter, setFilter] = useState<HistoryFilter>({ status: 'all', query: '' });
   const runs = history.filter((r) => matchesHistory(r, filter));
   return (
-    <>
+    <div className="wide-page">
       <h1>History</h1>
       <p className="lead">Every run on this machine, from the app, a flow or the terminal. Kept in out/runs/.</p>
       <div className="filters">
@@ -36,6 +36,6 @@ export const HistoryPage = () => {
         <input type="search" aria-label="Search history" placeholder="Search function, parameters, ref…" value={filter.query} onChange={(e) => setFilter({ ...filter, query: e.target.value })} />
       </div>
       <section className="tight">{runs.length ? <HistoryTable runs={runs} onOpen={(id) => navigate(`/run/${id}`)} /> : <div className="empty">No runs match.</div>}</section>
-    </>
+    </div>
   );
 };

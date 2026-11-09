@@ -4,8 +4,12 @@ import { toSpec, toValues, withSelectDefaults, type FormValues } from '../../../
 import { ApiError, type FieldJson, type Fn, type Meta, type Preset, type Presets, type RecordRow } from '../api.ts';
 import { useDialog } from '../components/Dialog.tsx';
 import { kindLabel } from '../components/bits.tsx';
+import { FnTitle } from '../components/FnTitle.tsx';
 import { FormRenderer } from '../components/FormRenderer.tsx';
+import { Menu } from '../components/Menu.tsx';
+import { RunBar } from '../components/RunBar.tsx';
 import { ValueInput } from '../components/ValueInput.tsx';
+import { splitTag } from '../lib/flowChart.ts';
 import { formOf } from '../lib/flowDraft.ts';
 import { ago, who } from '../lib/format.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
@@ -27,6 +31,7 @@ const JsonInput = ({ fn, field, meta, presets, start, values, onChange }: { fn: 
   const [source, setSource] = useState(start);
   const [saveName, setSaveName] = useState('');
   const [saved, setSaved] = useState('');
+  const [saving, setSaving] = useState(false);
   const save = useSavePreset();
   const { confirm, notify, dialog } = useDialog();
   const load = (file: string) => {
@@ -50,10 +55,14 @@ const JsonInput = ({ fn, field, meta, presets, start, values, onChange }: { fn: 
     }
   };
   return (
-    <section>
+    <section className="card">
       {dialog}
-      <h2 className="sub">{field.label}</h2>
-      <div className="field">
+      <div className="card-head">
+        <h2 className="sub">{field.label}</h2>
+        <span className="spacer" />
+        <Menu label={`${field.label} options`} items={[{ label: 'Save as preset…', checked: saving, onSelect: () => setSaving(!saving) }]} />
+      </div>
+      <div className="preset-bar">
         <label htmlFor="source">Start from</label>
         <select id="source" value={source} onChange={(e) => load(e.target.value)}>
           {source === 'current' && (
@@ -68,17 +77,20 @@ const JsonInput = ({ fn, field, meta, presets, start, values, onChange }: { fn: 
             </option>
           ))}
         </select>
-        <div className="hint">Load a saved preset, then change anything.</div>
       </div>
+      {saving && (
+        <div className="drawer">
+          <div className="inline">
+            <input type="text" aria-label="Preset name" value={saveName} placeholder="preset name, e.g. team-a/admin" onChange={(e) => setSaveName(e.target.value)} />
+            <button type="button" className="btn" disabled={!saveName.trim()} onClick={() => savePreset()}>
+              Save as preset
+            </button>
+          </div>
+          <div className="hint">Saved to config/{field.presets}/&lt;name&gt;.json. Commit it to share with the team.</div>
+          {saved && <div className="box ok gap-top">{saved}</div>}
+        </div>
+      )}
       <FormRenderer form={form} values={values} onChange={onChange} options={meta.options} project={fn.id} />
-      <div className="inline gap-top">
-        <input type="text" aria-label="Preset name" value={saveName} placeholder="preset name, e.g. team-a/admin" onChange={(e) => setSaveName(e.target.value)} />
-        <button type="button" className="btn small" disabled={!saveName.trim()} onClick={() => savePreset()}>
-          Save as preset
-        </button>
-      </div>
-      <div className="hint">Saved to config/{field.presets}/&lt;name&gt;.json. Commit it to share with the team.</div>
-      {saved && <div className="box ok gap-top">{saved}</div>}
     </section>
   );
 };
@@ -87,7 +99,7 @@ const RecordPicker = ({ fn, field, meta, records, value, onChange }: { fn: Fn; f
   const list = eligible(fn, records);
   const noun = kindLabel(fn.record ?? '', meta);
   return (
-    <section>
+    <section className="card">
       <h2 className="sub">Which {noun}?</h2>
       {list.length ? (
         <div className="choices">
@@ -152,9 +164,9 @@ const FunctionForm = ({ fn, meta, presets, records, initial }: { fn: Fn; meta: M
   };
 
   return (
-    <div className="grid2">
+    <div className="stack">
       {dialog}
-      <div>
+      <div className="stack">
         {key && <RecordPicker fn={fn} meta={meta} field={fieldOf(key)!} records={records} value={values[key] ?? ''} onChange={(v) => set(key, v)} />}
         {jsonNames.map((name) => (
           <JsonInput
@@ -169,7 +181,7 @@ const FunctionForm = ({ fn, meta, presets, records, initial }: { fn: Fn; meta: M
           />
         ))}
         {plainNames.length > 0 && (
-          <section>
+          <section className="card">
             <h2 className="sub">{key ? 'Other inputs' : 'Inputs'}</h2>
             <div className="block-fields">
               {plainNames.map((name) => {
@@ -191,52 +203,38 @@ const FunctionForm = ({ fn, meta, presets, records, initial }: { fn: Fn; meta: M
           </section>
         )}
       </div>
-      <div className="side">
-        <div className="checks">
-          {live && (
-            <div className="box warn">
-              "{live.title}" is running. <Link to={`/run/${live.id}`}>Watch it</Link>. Runs go one at a time.
-            </div>
-          )}
-          {(check.data?.missingEnv ?? []).length > 0 && (
-            <div className="box warn">
-              <b>.env.local is missing</b> {check.data!.missingEnv.join(', ')}. The run will stop when it first needs one.
-            </div>
-          )}
-          {check.data?.unknownRecord && <div className="box warn">No saved record for {values[key!]}; give every input yourself.</div>}
-          {problems.length ? (
-            <div className="box bad">
-              <b>Fix before running</b>
-              <ul>
-                {problems.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <div className="box ok">
-              {checking ? 'Checking…' : '✓ Ready to run'}
-              {!checking && fromRecord.length > 0 && <div className="hint">{fromRecord.length} input(s) come from the record.</div>}
-            </div>
-          )}
-        </div>
-        <section className="panel">
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={headed}
-              onChange={(e) => {
-                setHeaded(e.target.checked);
-                writePref('headed', e.target.checked ? '1' : '0');
-              }}
-            />{' '}
-            Show the browser while it runs
-          </label>
-          <button type="button" className="btn primary wide gap-top" disabled={Boolean(live) || checking || problems.length > 0} onClick={run}>
-            Run {fn.title}
-          </button>
-        </section>
-      </div>
+      <RunBar
+        problems={problems}
+        notes={[
+          ...(live
+            ? [
+                <>
+                  "{live.title}" is running. <Link to={`/run/${live.id}`}>Watch it</Link>. Runs go one at a time.
+                </>,
+              ]
+            : []),
+          ...((check.data?.missingEnv ?? []).length > 0
+            ? [
+                <>
+                  <b>.env.local is missing</b> {check.data!.missingEnv.join(', ')}. The run will stop when it first needs one.
+                </>,
+              ]
+            : []),
+          ...(check.data?.unknownRecord ? [`No saved record for ${values[key!]}; give every input yourself.`] : []),
+        ]}
+        checking={checking}
+        ready="Ready to run"
+        readyHint={fromRecord.length > 0 ? `${fromRecord.length} input(s) come from the record.` : undefined}
+        headed={headed}
+        onHeaded={(on) => {
+          setHeaded(on);
+          writePref('headed', on ? '1' : '0');
+        }}
+      >
+        <button type="button" className="btn primary" disabled={Boolean(live) || checking || problems.length > 0} onClick={run}>
+          Run {splitTag(fn.title).name}
+        </button>
+      </RunBar>
     </div>
   );
 };
@@ -280,13 +278,15 @@ export const FunctionPage = () => {
     source: remembered ? remembered.file : 'blank',
   };
   return (
-    <>
+    <div className="focus">
       <Link className="crumb" to="/">
         ← All functions
       </Link>
-      <h1>{fn.title}</h1>
+      <h1>
+        <FnTitle title={fn.title} />
+      </h1>
       <p className="lead">{fn.detail}</p>
       {runId ? <FromRun id={runId}>{form}</FromRun> : form(fresh)}
-    </>
+    </div>
   );
 };

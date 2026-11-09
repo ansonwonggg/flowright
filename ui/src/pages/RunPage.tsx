@@ -1,7 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
-import type { Fn, Meta, RunInfo } from '../api.ts';
+import type { Meta, RunInfo } from '../api.ts';
 import { useDialog } from '../components/Dialog.tsx';
 import { RecordCard, StatusPill } from '../components/bits.tsx';
+import { FnTitle } from '../components/FnTitle.tsx';
 import { Log } from '../components/Log.tsx';
 import { Timeline } from '../components/Timeline.tsx';
 import { duration, when } from '../lib/format.ts';
@@ -17,22 +18,15 @@ const shown = (value: string) => {
   }
 };
 
-const Parameters = ({ run, fn, meta }: { run: RunInfo; fn?: Fn; meta?: Meta }) => {
+const Parameters = ({ run, meta }: { run: RunInfo; meta?: Meta }) => {
   const label = (name: string) => meta?.fields.find((f) => f.name === name)?.label ?? name;
   const rows = [...Object.entries(run.input ?? {}).map(([k, v]) => [label(k), shown(v)]), ['Browser', run.headed ? 'shown' : 'headless']];
-  const again = fn ? `/fn/${fn.id}?run=${run.id}` : undefined;
   return (
-    <section>
-      <div className="inline between">
-        <b>Parameters</b>
-        {again && (
-          <Link className="btn small" to={again}>
-            Run again →
-          </Link>
-        )}
-      </div>
-      <div className="gap">{run.summary}</div>
-      <div className="kv two">
+    <details className="card fold">
+      <summary>
+        <b>Parameters</b> <span className="muted">{run.summary}</span>
+      </summary>
+      <div className="kv two gap-top">
         {rows.map(([k, v]) => (
           <div key={k} className="kv-row">
             <span className="k">{k}</span>
@@ -40,7 +34,7 @@ const Parameters = ({ run, fn, meta }: { run: RunInfo; fn?: Fn; meta?: Meta }) =
           </div>
         ))}
       </div>
-    </section>
+    </details>
   );
 };
 
@@ -74,52 +68,54 @@ export const RunPage = () => {
   };
 
   return (
-    <>
+    <div className="focus">
       {dialog}
       <Link className="crumb" to="/history">
         ← History
       </Link>
-      <div className="runhead">
-        <h1>{run.title}</h1>
+      <div className="pagehead">
+        <h1>
+          <FnTitle title={run.title} />
+        </h1>
         <StatusPill status={run.status} testId="run-status" />
-        <span className="muted">
-          {when(run.startedAt)} · {duration((run.endedAt ?? now) - run.startedAt)}
-        </span>
         <span className="spacer" />
+        {fn && !live && (
+          <Link className="btn small" to={`/fn/${fn.id}?run=${run.id}`}>
+            Run again
+          </Link>
+        )}
+        {run.hasReport && (
+          <a className="btn small" href={`/runs/${run.id}/report/`} target="_blank" rel="noreferrer" title="Screenshots, trace, errors">
+            Playwright report ↗
+          </a>
+        )}
         {live && run.status !== 'stopping' && (
           <button type="button" className="btn danger small" onClick={onStop}>
             Stop
           </button>
         )}
       </div>
-      <div className="grid2 gap-top">
-        <div>
-          <section>
-            <Timeline tests={run.view?.tests ?? []} failures={run.view?.failures ?? []} status={run.status} live={live} now={now} />
+      <p className="lead">
+        {when(run.startedAt)} · {duration((run.endedAt ?? now) - run.startedAt)}
+        {run.summary ? ` · ${run.summary}` : ''}
+      </p>
+      <div className="stack">
+        <section className="card">
+          <Timeline tests={run.view?.tests ?? []} failures={run.view?.failures ?? []} status={run.status} live={live} now={now} />
+        </section>
+        {!live && (
+          <section className="card">
+            <h2 className="sub">Records made or updated</h2>
+            {(run.records ?? []).length ? (
+              run.records.map((r) => <RecordCard key={r.ref} made={r} meta={meta} full={records.find((x) => x.kind === r.kind && x.key === r.ref)} />)
+            ) : (
+              <div className="muted">None were written under out/records.</div>
+            )}
           </section>
-          {!live && (
-            <section>
-              <b>Records made or updated</b>
-              {(run.records ?? []).length ? (
-                run.records.map((r) => <RecordCard key={r.ref} made={r} meta={meta} full={records.find((x) => x.kind === r.kind && x.key === r.ref)} />)
-              ) : (
-                <div className="muted gap-top">None were written under out/records.</div>
-              )}
-            </section>
-          )}
-          <Log lines={log} live={live} />
-        </div>
-        <div className="side">
-          <Parameters run={run} fn={fn} meta={meta} />
-          {run.hasReport ? (
-            <a className="btn center" href={`/runs/${run.id}/report/`} target="_blank" rel="noreferrer">
-              Open Playwright report ↗<div className="hint">screenshots, trace, errors</div>
-            </a>
-          ) : (
-            !live && <div className="muted small">No Playwright report was kept for this run.</div>
-          )}
-        </div>
+        )}
+        <Log lines={log} live={live} />
+        <Parameters run={run} meta={meta} />
       </div>
-    </>
+    </div>
   );
 };

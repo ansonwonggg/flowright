@@ -1,6 +1,8 @@
-import { Link, useNavigate } from 'react-router-dom';
-import type { Fn, Meta, Presets } from '../api.ts';
-import { HistoryTable } from '../components/bits.tsx';
+import { Link } from 'react-router-dom';
+import type { Fn, HistoryItem, Meta, Presets } from '../api.ts';
+import { StatusPill } from '../components/bits.tsx';
+import { FnTitle } from '../components/FnTitle.tsx';
+import { duration, when } from '../lib/format.ts';
 import { useHistory, useLive, useMeta, usePresets } from '../queries.ts';
 import { presetsFor } from './FunctionPage.tsx';
 import { FlowCards } from './FlowsPage.tsx';
@@ -23,23 +25,46 @@ export const cardNote = (fn: Fn, meta: Meta, presets: Presets | undefined): stri
   return flows ? `Used in ${plural(flows, 'flow')}` : 'Not in any flow';
 };
 
-const FunctionCard = ({ fn, meta, presets }: { fn: Fn; meta: Meta; presets?: Presets }) => (
-  <Link className="flowcard" to={`/fn/${fn.id}`}>
-    <div className="t">{fn.title}</div>
-    <div className="d">{fn.detail}</div>
-    <div className="n muted">{cardNote(fn, meta, presets)}</div>
+const FunctionRow = ({ fn, meta, presets }: { fn: Fn; meta: Meta; presets?: Presets }) => (
+  <Link className="fnrow" to={`/fn/${fn.id}`}>
+    <span className="fnrow-main">
+      <span className="t">
+        <FnTitle title={fn.title} />
+      </span>
+      <span className="d">{fn.detail}</span>
+    </span>
+    <span className="n">{cardNote(fn, meta, presets)}</span>
   </Link>
 );
 
+const RecentRuns = ({ runs }: { runs: HistoryItem[] }) => (
+  <div className="runlist">
+    {runs.map((r) => (
+      <Link key={r.id} className="runrow" to={`/run/${r.id}`}>
+        <StatusPill status={r.status} />
+        <span className="runrow-main">
+          <span className="t">
+            <FnTitle title={r.title} />
+          </span>
+          <span className="d">{r.view?.failures?.[0] ? <span className="bad-text">✗ {r.view.failures[0].title}</span> : r.summary}</span>
+        </span>
+        <span className="n">
+          {when(r.startedAt)}
+          {r.endedAt ? ` · ${duration(r.endedAt - r.startedAt)}` : ''}
+        </span>
+      </Link>
+    ))}
+  </div>
+);
+
 export const HomePage = () => {
-  const navigate = useNavigate();
   const { data: meta } = useMeta();
   const { data: presets } = usePresets();
   const { data: history = [] } = useHistory();
   const { data: live } = useLive();
   if (!meta) return <div className="empty">Loading…</div>;
   return (
-    <>
+    <div className="wide-page">
       {live && (
         <div className="banner">
           <span className="spin">◐</span>
@@ -50,26 +75,22 @@ export const HomePage = () => {
           <Link to={`/run/${live.id}`}>Watch it →</Link>
         </div>
       )}
-      <h1>What do you want to make?</h1>
-      <p className="lead">Every run makes permanent records on DEV. Runs go one at a time.</p>
+      <div className="hero">
+        <h1>What do you want to make?</h1>
+        <p className="lead">Every run makes permanent records on DEV. Runs go one at a time.</p>
+      </div>
       <h2>Flows</h2>
       <FlowCards flows={presets?.flows ?? []} />
       <h2>Run one function</h2>
-      <div className="cards">
+      <div className="fnlist">
         {meta.functions.map((fn) => (
-          <FunctionCard key={fn.id} fn={fn} meta={meta} presets={presets} />
+          <FunctionRow key={fn.id} fn={fn} meta={meta} presets={presets} />
         ))}
       </div>
       <h2>
         Recent runs <Link className="h2-link" to="/history">all →</Link>
       </h2>
-      {history.length ? (
-        <section className="tight">
-          <HistoryTable runs={history.slice(0, 5)} onOpen={(id) => navigate(`/run/${id}`)} />
-        </section>
-      ) : (
-        <div className="muted">Nothing yet. Runs appear here, including ones started from the terminal.</div>
-      )}
-    </>
+      {history.length ? <RecentRuns runs={history.slice(0, 5)} /> : <div className="muted">Nothing yet. Runs appear here, including ones started from the terminal.</div>}
+    </div>
   );
 };

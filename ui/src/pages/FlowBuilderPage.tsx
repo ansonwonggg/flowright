@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { nextFunctions } from '../../../src/flow.ts';
 import { ApiError, type Meta, type Preset } from '../api.ts';
 import { useDialog } from '../components/Dialog.tsx';
+import { RunBar } from '../components/RunBar.tsx';
 import { fileNameOf, slugify } from '../lib/flowChart.ts';
 import { draftFrom, flowOf, newStep, titleOf, type DraftStep } from '../lib/flowDraft.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
@@ -25,6 +26,7 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
   const [headed, setHeaded] = useState(() => readPref('headed') === '1');
   const [mode, setMode] = useState<BuilderMode>(() => (readPref('builderMode') === 'drag' ? 'drag' : 'form'));
   const [saved, setSaved] = useState('');
+  const [saving, setSaving] = useState(false);
   const { data: live } = useLive();
   const start = useStartFlow();
   const save = useSaveFlow();
@@ -75,93 +77,42 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
   };
 
   return (
-    <>
+    <div className={`focus${mode === 'drag' ? ' wide' : ''}`}>
       {dialog}
       <Link className="crumb" to="/flows">
         ← Flows
       </Link>
-      <h1>{named || 'New flow'}</h1>
+      <div className="pagehead">
+        <h1>{named || 'New flow'}</h1>
+        <span className="spacer" />
+        <div className="modes" role="radiogroup" aria-label="Builder mode">
+          {MODES.map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={mode === value}
+              className={`btn small${mode === value ? ' on' : ''}`}
+              onClick={() => {
+                setMode(value);
+                writePref('builderMode', value);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button type="button" className={`btn small${saving ? ' on' : ''}`} aria-expanded={saving} onClick={() => setSaving(!saving)}>
+          Save…
+        </button>
+      </div>
       <p className="lead">
         Functions run one after another{kinds.length > 0 && ` on one ${kinds.join(' or one ')}`}. A blank input takes the value an earlier step gave under that name, or the
         record's.
       </p>
-      <div className="modes" role="radiogroup" aria-label="Builder mode">
-        {MODES.map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={mode === value}
-            className={`btn small${mode === value ? ' on' : ''}`}
-            onClick={() => {
-              setMode(value);
-              writePref('builderMode', value);
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="grid2">
-        {mode === 'drag' ? (
-          <DragSteps steps={steps} flow={flow} meta={meta} errors={errors} onSteps={setSteps} />
-        ) : (
-          <div>
-            {steps.map((step, i) => (
-              <StepCard
-                key={step.key}
-                index={i}
-                step={step}
-                fn={fnOf(step.fn)}
-                flow={flow}
-                meta={meta}
-                onChange={(next) => setSteps(steps.map((s) => (s.key === step.key ? next : s)))}
-                onRemove={() => setSteps(steps.filter((s) => s.key !== step.key))}
-              />
-            ))}
-            {offered.length ? (
-              <div className="field">
-                <label htmlFor="add-step">{steps.length ? 'Add a step' : 'First step'}</label>
-                <select id="add-step" value="" onChange={(e) => e.target.value && setSteps([...steps, newStep(meta.functions, meta.fields, e.target.value, meta.options)])}>
-                  <option value="">Choose a function…</option>
-                  {offered.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div className="muted">No function can follow the last one.</div>
-            )}
-          </div>
-        )}
-        <div className="side">
-          <div className="checks">
-            {live && (
-              <div className="box warn">
-                "{live.title}" is running. <Link to={`/run/${live.id}`}>Watch it</Link>. Runs go one at a time.
-              </div>
-            )}
-            {warnings.map((w) => (
-              <div key={w} className="box warn">
-                {w}. That step will stop when it first needs one.
-              </div>
-            ))}
-            {errors.length ? (
-              <div className="box bad">
-                <b>Fix before running</b>
-                <ul>
-                  {errors.map((e) => (
-                    <li key={e}>{e}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="box ok">{checking ? 'Checking…' : '✓ The flow can run'}</div>
-            )}
-          </div>
-          <section className="panel">
+      {saving && (
+        <section className="card drawer-card" aria-label="Save the flow">
+          <div className="two-fields">
             <div className="field">
               <label htmlFor="flow-title">Title</label>
               <input id="flow-title" type="text" value={title} placeholder="e.g. New ER user" onChange={(e) => setTitle(e.target.value)} />
@@ -172,28 +123,73 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
               <input id="flow-file" type="text" value={fileName} placeholder={slugify(title) || 'e.g. new-er-user'} onChange={(e) => setFileName(e.target.value)} />
               <div className="hint">{saveAs ? `Saves to config/flows/${saveAs}.flow.json` : 'Where Save puts it, under config/flows/.'}</div>
             </div>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={headed}
-                onChange={(e) => {
-                  setHeaded(e.target.checked);
-                  writePref('headed', e.target.checked ? '1' : '0');
-                }}
-              />{' '}
-              Show the browser while it runs
-            </label>
-            <button type="button" className="btn primary wide gap-top" disabled={Boolean(live) || checking || errors.length > 0} onClick={run}>
-              Run the flow
-            </button>
-            <button type="button" className="btn small gap-top" disabled={!saveAs || !steps.length} onClick={() => saveFlow()}>
+          </div>
+          <div className="inline">
+            <button type="button" className="btn" disabled={!saveAs || !steps.length} onClick={() => saveFlow()}>
               Save as preset
             </button>
-            {saved && <div className="box ok gap-top">{saved}</div>}
-          </section>
+            {saved && <span className="ok-text">{saved}</span>}
+          </div>
+        </section>
+      )}
+      {mode === 'drag' ? (
+        <DragSteps steps={steps} flow={flow} meta={meta} errors={errors} onSteps={setSteps} />
+      ) : (
+        <div className="stack">
+          {steps.map((step, i) => (
+            <StepCard
+              key={step.key}
+              index={i}
+              step={step}
+              fn={fnOf(step.fn)}
+              flow={flow}
+              meta={meta}
+              onChange={(next) => setSteps(steps.map((s) => (s.key === step.key ? next : s)))}
+              onRemove={() => setSteps(steps.filter((s) => s.key !== step.key))}
+            />
+          ))}
+          {offered.length ? (
+            <div className="field add-step">
+              <label htmlFor="add-step">{steps.length ? 'Add a step' : 'First step'}</label>
+              <select id="add-step" value="" onChange={(e) => e.target.value && setSteps([...steps, newStep(meta.functions, meta.fields, e.target.value, meta.options)])}>
+                <option value="">Choose a function…</option>
+                {offered.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="muted center">No function can follow the last one.</div>
+          )}
         </div>
-      </div>
-    </>
+      )}
+      <RunBar
+        problems={errors}
+        notes={[
+          ...(live
+            ? [
+                <>
+                  "{live.title}" is running. <Link to={`/run/${live.id}`}>Watch it</Link>. Runs go one at a time.
+                </>,
+              ]
+            : []),
+          ...warnings.map((w) => `${w}. That step will stop when it first needs one.`),
+        ]}
+        checking={checking}
+        ready="The flow can run"
+        headed={headed}
+        onHeaded={(on) => {
+          setHeaded(on);
+          writePref('headed', on ? '1' : '0');
+        }}
+      >
+        <button type="button" className="btn primary" disabled={Boolean(live) || checking || errors.length > 0} onClick={run}>
+          Run the flow
+        </button>
+      </RunBar>
+    </div>
   );
 };
 

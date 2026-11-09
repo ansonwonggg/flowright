@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CopyButton, NextLinks, StageChip, StatusPill } from '../components/bits.tsx';
+import { FnTitle } from '../components/FnTitle.tsx';
 import { groupByFunction, type FunctionGroup, type FunctionRow } from '../lib/byFunction.ts';
 import { when, who } from '../lib/format.ts';
 import { useHistory, useMeta, useRecords, useRun } from '../queries.ts';
@@ -94,7 +95,9 @@ export const FunctionSection = ({ group, open, onToggle }: { group: FunctionGrou
     <section className="tight fn">
       <button type="button" className="fn-head" aria-expanded={!folded} onClick={() => setFolded(!folded)}>
         <span className="chev">{folded ? '▸' : '▾'}</span>
-        <span className="fn-title">{fn.title}</span>
+        <span className="fn-title">
+          <FnTitle title={fn.title} />
+        </span>
         <span className="muted small">{fn.detail}</span>
         <span className="spacer" />
         <span className="chip done">✓ {passed}</span>
@@ -154,7 +157,7 @@ export const RecordsPage = () => {
   const [open, setOpen] = useState<string | null>(null);
   const groups = meta ? groupByFunction(meta.functions, history, records, kind, query) : [];
   return (
-    <>
+    <div className="wide-page">
       <h1>Records</h1>
       <p className="lead">What each function made, newest first. Open a row for its parameters, output and log.</p>
       <div className="filters">
@@ -172,6 +175,6 @@ export const RecordsPage = () => {
       ) : (
         <div className="empty">{history.length ? 'No records match.' : 'Nothing yet. Records appear here once a flow has run.'}</div>
       )}
-    </>
+    </div>
   );
 };

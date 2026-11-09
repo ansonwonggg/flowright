@@ -36,6 +36,9 @@ export const App = () => {
     <>
       <header>
         <Link className="brand" to="/">
+          <span className="logo" aria-hidden="true">
+            ◆
+          </span>
           {title}
         </Link>
         <nav>
@@ -54,7 +57,7 @@ export const App = () => {
         </nav>
         <span className="spacer" />
         <LivePill />
-        {!connected && <span className="muted small">Lost the app server, retrying… (is flowkit app still running?)</span>}
+        {!connected && <span className="offline">Lost the app server, retrying… (is flowkit app still running?)</span>}
       </header>
       <main className="wrap">
         <Outlet />

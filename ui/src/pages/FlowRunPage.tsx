@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { FlowRun, FlowRunStep } from '../api.ts';
 import { CopyButton } from '../components/bits.tsx';
+import { FnTitle } from '../components/FnTitle.tsx';
 import { Log } from '../components/Log.tsx';
 import { Menu, type MenuItem } from '../components/Menu.tsx';
 import { duration, when } from '../lib/format.ts';
@@ -14,10 +15,10 @@ const Values = ({ values, label }: { values?: Record<string, string>; label: str
   const rows = Object.entries(values ?? {});
   if (!rows.length) return <div className="muted">—</div>;
   return (
-    <div className="kv" aria-label={label}>
+    <div className="vals" aria-label={label}>
       {rows.map(([k, v]) => (
-        <div key={k} className="kv-row">
-          <span className="k mono">{k}</span>
+        <div key={k} className="val">
+          <span className="k">{k}</span>
           <span className="v">{v}</span>
           <CopyButton text={v} />
         </div>
@@ -45,33 +46,39 @@ const StepRow = ({ step, n }: { step: FlowRunStep; n: number }) => {
             : []),
         ];
   return (
-    <li aria-label={`Step ${n}`}>
-      <div className="inline between">
-        <span>
-          <span className="step-no">{n}</span> <b>{step.title}</b>
-        </span>
-        <span className="inline">
-          <span className={`pill ${pillOf(step.status)}`} data-testid={`step-${n}-status`}>
-            {step.status}
+    <li aria-label={`Step ${n}`} className={`st-${pillOf(step.status) || 'waiting'}`}>
+      <span className="st-dot" aria-hidden="true">
+        {step.status === 'passed' ? '✓' : step.status === 'failed' || step.status === 'stopped' ? '✗' : step.status === 'running' ? <span className="spin">◐</span> : n}
+      </span>
+      <div className="st-body">
+        <div className="card-head">
+          <span className="st-title">
+            <FnTitle title={step.title} />
           </span>
-          {(step.status === 'passed' || ended) && step.runId && <StepReport runId={step.runId} />}
-          <Menu label={`Step ${n} options`} items={items} />
-        </span>
+          <span className="spacer" />
+          <span className="inline">
+            <span className={`pill ${pillOf(step.status)}`} data-testid={`step-${n}-status`}>
+              {step.status}
+            </span>
+            {(step.status === 'passed' || ended) && step.runId && <StepReport runId={step.runId} />}
+            <Menu label={`Step ${n} options`} items={items} />
+          </span>
+        </div>
+        {step.error && <div className="box bad gap-top">{step.error}</div>}
+        {showInput && (
+          <div className="gap-top">
+            <h3 className="sub">Input</h3>
+            <Values values={step.input} label={`Step ${n} input`} />
+          </div>
+        )}
+        {step.status === 'passed' && (
+          <div className="gap-top">
+            <h3 className="sub">Output</h3>
+            <Values values={step.output} label={`Step ${n} output`} />
+          </div>
+        )}
+        {logShown && step.runId && <StepLog runId={step.runId} open={running || ended || logChoice === true} label={`Step ${n} log`} />}
       </div>
-      {step.error && <div className="box bad gap-top">{step.error}</div>}
-      {showInput && (
-        <div className="gap-top">
-          <h3>Input</h3>
-          <Values values={step.input} label={`Step ${n} input`} />
-        </div>
-      )}
-      {step.status === 'passed' && (
-        <div className="gap-top">
-          <h3>Output</h3>
-          <Values values={step.output} label={`Step ${n} output`} />
-        </div>
-      )}
-      {logShown && step.runId && <StepLog runId={step.runId} open={running || ended || logChoice === true} label={`Step ${n} log`} />}
     </li>
   );
 };
@@ -98,7 +105,7 @@ const StepLog = ({ runId, open, label }: { runId: string; open: boolean; label: 
  * kept. Each started step's ⋯ menu shows its input, toggles its log, and links to its run in History.
  */
 export const Steps = ({ run }: { run: FlowRun }) => (
-  <ol className="chain-run">
+  <ol className="stepper">
     {run.steps.map((s, i) => (
       <StepRow key={`${i}-${s.function}`} step={s} n={i + 1} />
     ))}
@@ -112,17 +119,18 @@ export const FlowRunPage = () => {
   if (isPending) return <div className="empty">Loading…</div>;
   if (error) return <div className="empty">{error.message}</div>;
   return (
-    <>
+    <div className="focus">
       <Link className="crumb" to="/flows">
         ← Flows
       </Link>
-      <div className="runhead">
+      <div className="pagehead">
         <h1>{run.name}</h1>
         <span className={`pill ${pillOf(run.status)}`} data-testid="flow-status">
           {run.status}
         </span>
+        <span className="spacer" />
         {run.status === 'running' && (
-          <button type="button" className="btn" onClick={() => stop.mutate()}>
+          <button type="button" className="btn danger small" onClick={() => stop.mutate()}>
             Stop
           </button>
         )}
@@ -132,10 +140,14 @@ export const FlowRunPage = () => {
         {run.endedAt ? ` · took ${duration(run.endedAt - run.startedAt)}` : ''}. Each step is its own run in History.
       </p>
       <Steps run={run} />
-      <h2>Values passed along</h2>
-      <section className="panel">
-        <Values values={run.values} label="Values passed along" />
-      </section>
-    </>
+      <details className="card fold">
+        <summary>
+          <b>Values passed along</b> <span className="muted">{Object.keys(run.values ?? {}).length}</span>
+        </summary>
+        <div className="gap-top">
+          <Values values={run.values} label="Values passed along" />
+        </div>
+      </details>
+    </div>
   );
 };

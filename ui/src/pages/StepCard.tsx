@@ -1,4 +1,5 @@
 import type { FlowDef, Fn, Meta } from '../api.ts';
+import { FnTitle } from '../components/FnTitle.tsx';
 import { FormRenderer } from '../components/FormRenderer.tsx';
 import { ValueInput } from '../components/ValueInput.tsx';
 import { formOf, inputSource, placeholderFor, type DraftStep } from '../lib/flowDraft.ts';
@@ -25,13 +26,13 @@ export const StepCard = ({ index, step, fn, flow, meta, onChange, onRemove, bare
   const json = names.filter((name) => formOf(fieldOf(name)));
   const plain = names.filter((name) => !json.includes(name));
   return (
-    <section className={`panel chain-step${bare ? ' bare' : ''}`} aria-label={`Step ${n}`}>
+    <section className={`card chain-step${bare ? ' bare' : ''}`} aria-label={`Step ${n}`}>
       {!bare && (
-        <div className="inline between">
+        <div className="card-head">
           <h3>
-            <span className="step-no">{n}</span> {fn?.title ?? `Unknown function "${step.fn}"`}
+            <span className="step-no">{n}</span> {fn ? <FnTitle title={fn.title} /> : `Unknown function "${step.fn}"`}
           </h3>
-          <button type="button" className="btn small" aria-label={`Remove step ${n}`} onClick={onRemove}>
+          <button type="button" className="btn small ghost" aria-label={`Remove step ${n}`} onClick={onRemove}>
             Remove
           </button>
         </div>
@@ -61,7 +62,7 @@ export const StepCard = ({ index, step, fn, flow, meta, onChange, onRemove, bare
           })}
         </div>
       )}
-      {fn && !bare && <div className="hint">Gives: {fn.outputs.join(', ') || 'nothing'}</div>}
+      {fn && !bare && <div className="gives">Gives: {fn.outputs.join(', ') || 'nothing'}</div>}
     </section>
   );
 };

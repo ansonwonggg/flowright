@@ -26,6 +26,7 @@ const page = (url = '/flow-builder') =>
     </MemoryRouter>,
   );
 const mode = (name: string) => screen.getByRole('radio', { name });
+const openSave = () => userEvent.click(screen.getByRole('button', { name: 'Save…' }));
 
 beforeEach(() => {
   localStorage.clear();
@@ -86,6 +87,7 @@ describe('FlowBuilderPage dialogs', () => {
   it('Start starts the flow under its name', async () => {
     start.mutateAsync.mockResolvedValue({ id: 'r1' });
     await withSteps();
+    await openSave();
     await userEvent.type(screen.getByLabelText('Title'), 'mine');
     await userEvent.click(screen.getByRole('button', { name: 'Run the flow' }));
     expect(screen.getByRole('dialog', { name: 'Start mine?' })).toBeInTheDocument();
@@ -104,6 +106,7 @@ describe('FlowBuilderPage dialogs', () => {
   it('saving over an existing file asks first; Replace saves with overwrite, Cancel does not', async () => {
     save.mutateAsync.mockRejectedValueOnce(new ApiError('exists', 409, { file: 'config/flows/mine.flow.json' })).mockResolvedValueOnce({ file: 'config/flows/mine.flow.json' });
     await withSteps();
+    await openSave();
     await userEvent.type(screen.getByLabelText('Title'), 'mine');
     await userEvent.click(screen.getByRole('button', { name: 'Save as preset' }));
     expect(await screen.findByRole('dialog', { name: 'Replace the saved flow?' })).toHaveTextContent('config/flows/mine.flow.json already exists.');
@@ -115,6 +118,7 @@ describe('FlowBuilderPage dialogs', () => {
   it('a failed save is shown in the page', async () => {
     save.mutateAsync.mockRejectedValue(new Error('disk full'));
     await withSteps();
+    await openSave();
     await userEvent.type(screen.getByLabelText('Title'), 'mine');
     await userEvent.click(screen.getByRole('button', { name: 'Save as preset' }));
     expect(await screen.findByRole('dialog', { name: 'Could not save the flow' })).toHaveTextContent('disk full');
@@ -122,30 +126,44 @@ describe('FlowBuilderPage dialogs', () => {
 });
 
 describe('FlowBuilderPage title and file name', () => {
+  it('Title, File name and Save sit behind Save…, which opens and closes them', async () => {
+    page();
+    expect(screen.queryByLabelText('Title')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save…' })).toHaveAttribute('aria-expanded', 'false');
+    await openSave();
+    expect(screen.getByRole('button', { name: 'Save…' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('region', { name: 'Save the flow' })).toBeInTheDocument();
+    await openSave();
+    expect(screen.queryByLabelText('Title')).toBeNull();
+  });
+
   it('a new flow: "New flow", and the intro names the kinds of record', () => {
     page();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New flow');
     expect(screen.getByText(/one after another on one ER user or one member\./)).toBeInTheDocument();
   });
 
-  it("a saved flow opens with its title as the heading and in Title, and its file name", () => {
+  it("a saved flow opens with its title as the heading and in Title, and its file name", async () => {
     savedFlows = [{ file: 'config/flows/new-er-user.flow.json', label: 'New ER user', summary: '', spec: { title: 'New ER user', steps: [{ function: 'create-user' }] } }];
     page('/flow-builder?preset=config%2Fflows%2Fnew-er-user.flow.json');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New ER user');
+    await openSave();
     expect(screen.getByLabelText('Title')).toHaveValue('New ER user');
     expect(screen.getByLabelText('File name')).toHaveValue('new-er-user');
   });
 
-  it('a saved flow without a title: the file name is the heading; Title stays blank', () => {
+  it('a saved flow without a title: the file name is the heading; Title stays blank', async () => {
     savedFlows = [{ file: 'config/flows/x/old.flow.json', label: 'x/old', summary: '', spec: { steps: [] } }];
     page('/flow-builder?preset=config%2Fflows%2Fx%2Fold.flow.json');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('x/old');
+    await openSave();
     expect(screen.getByLabelText('Title')).toHaveValue('');
   });
 
   it('typing a title renames the heading and suggests a file name; Save uses it and keeps the title in the flow', async () => {
     save.mutateAsync.mockResolvedValue({ file: 'config/flows/new-er-user-kiosk.flow.json' });
     await withSteps();
+    await openSave();
     expect(screen.getByRole('button', { name: 'Save as preset' })).toBeDisabled();
     await userEvent.type(screen.getByLabelText('Title'), 'New ER user (kiosk)');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New ER user (kiosk)');
@@ -158,6 +176,7 @@ describe('FlowBuilderPage title and file name', () => {
   it('a typed file name wins over the suggestion', async () => {
     save.mutateAsync.mockResolvedValue({ file: 'config/flows/mine.flow.json' });
     await withSteps();
+    await openSave();
     await userEvent.type(screen.getByLabelText('Title'), 'New ER user');
     await userEvent.type(screen.getByLabelText('File name'), 'mine');
     await userEvent.click(screen.getByRole('button', { name: 'Save as preset' }));
@@ -167,6 +186,7 @@ describe('FlowBuilderPage title and file name', () => {
   it('the start dialog and run use the file name when there is no title', async () => {
     start.mutateAsync.mockResolvedValue({ id: 'r1' });
     await withSteps();
+    await openSave();
     await userEvent.type(screen.getByLabelText('File name'), 'quick');
     await userEvent.click(screen.getByRole('button', { name: 'Run the flow' }));
     expect(screen.getByRole('dialog', { name: 'Start quick?' })).toBeInTheDocument();

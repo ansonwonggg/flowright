@@ -1,6 +1,7 @@
 import type { StepView, TestView } from '../../../src/index.ts';
 import type { Failure, ShownStatus } from '../api.ts';
 import { duration } from '../lib/format.ts';
+import { FnTitle } from './FnTitle.tsx';
 
 const Icon = ({ status }: { status: string }) => {
   if (status === 'running')
@@ -62,7 +63,9 @@ export const Timeline = ({ tests, failures, status, live, now }: TimelineProps) 
           <div key={i}>
             <div className="row testrow">
               <Icon status={t.status} />
-              <span className="t">{t.title}</span>
+              <span className="t">
+                <FnTitle title={t.title} />
+              </span>
               <span className="d">{took(t, live, now)}</span>
             </div>
             {t.steps.length > 0 && (

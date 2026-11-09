@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { HistoryItem, Meta, RecordRow, ShownStatus } from '../api.ts';
 import { duration, when, who } from '../lib/format.ts';
+import { FnTitle } from './FnTitle.tsx';
 
 /** A run's status as a coloured pill. `testId` lets tests find the one on the run page. */
 export const StatusPill = ({ status, testId }: { status: ShownStatus; testId?: string }) => (
@@ -91,7 +92,9 @@ export const HistoryTable = ({ runs, onOpen }: { runs: HistoryItem[]; onOpen: (i
         <tr key={r.id} className="click" onClick={() => onOpen(r.id)}>
           <td className="muted nowrap">{when(r.startedAt)}</td>
           <td className="nowrap">
-            <b>{r.title}</b>
+            <b>
+              <FnTitle title={r.title} />
+            </b>
           </td>
           <td>
             {r.summary}
