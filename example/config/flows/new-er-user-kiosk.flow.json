@@ -1,0 +1,29 @@
+{
+  "title": "New ER user (kiosk)",
+  "steps": [
+    {
+      "function": "create-er-user",
+      "values": {
+        "user_spec": {
+          "company": "PCCW",
+          "user_type": "Other User",
+          "rights": [
+            {
+              "function": "Company User Management",
+              "role": "Preparer"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "function": "vet-er-user"
+    },
+    {
+      "function": "activate-er-user-kiosk",
+      "values": {
+        "username": "etoe.kiosk01"
+      }
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+import { useEffect } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { duration } from './lib/format.ts';
+import { useNow } from './lib/hooks.ts';
+import { useLiveEvents } from './live.ts';
+import { useLive, useMeta } from './queries.ts';
+
+const LivePill = () => {
+  const { data: live } = useLive();
+  const now = useNow(Boolean(live));
+  if (!live) return null;
+  return (
+    <Link className="pill running live-pill" to={`/run/${live.id}`}>
+      <span className="spin">◐</span> {live.title} · {duration(now - live.startedAt)}
+    </Link>
+  );
+};
+
+/** The page frame: top bar with navigation and the running-run pill, and the live event stream. */
+export const App = () => {
+  const connected = useLiveEvents();
+  const { data: meta } = useMeta();
+  const title = meta?.settings.title ?? 'flowkit';
+  useEffect(() => {
+    const before = document.title;
+    document.title = title;
+    return () => {
+      document.title = before;
+    };
+  }, [title]);
+  const { pathname } = useLocation();
+  const homeActive = pathname === '/' || pathname.startsWith('/fn/');
+  const flowsActive = pathname.startsWith('/flow');
+  const historyActive = pathname.startsWith('/history') || pathname.startsWith('/run/');
+  return (
+    <>
+      <header>
+        <Link className="brand" to="/">
+          {title}
+        </Link>
+        <nav>
+          <NavLink to="/" className={homeActive ? 'on' : ''}>
+            Functions
+          </NavLink>
+          <NavLink to="/flows" className={flowsActive ? 'on' : ''}>
+            Flows
+          </NavLink>
+          <NavLink to="/history" className={historyActive ? 'on' : ''}>
+            History
+          </NavLink>
+          <NavLink to="/records" className={({ isActive }) => (isActive ? 'on' : '')}>
+            Records
+          </NavLink>
+        </nav>
+        <span className="spacer" />
+        <LivePill />
+        {!connected && <span className="muted small">Lost the app server, retrying… (is flowkit app still running?)</span>}
+      </header>
+      <main className="wrap">
+        <Outlet />
+      </main>
+    </>
+  );
+};

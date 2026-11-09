@@ -1,0 +1,4 @@
+{
+  "title": "New member",
+  "steps": [{ "function": "register-member" }]
+}

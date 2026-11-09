@@ -1,0 +1,238 @@
+# flowkit
+
+Steps, functions and flows for cross-portal Playwright automation, in one pattern that is checked
+rather than remembered. Built to replace the hand-kept pattern in `my-flows`.
+
+## Three layers, one suffix each
+
+| Layer | File | What it is |
+|---|---|---|
+| **Step** | `<area>/steps/<name>.step.ts` | One action on one portal, e.g. "ID number + mobile, send OTP". Typed in, typed out. Can't run alone. |
+| **Function** | `<area>/<id>.fn.ts` | A runnable unit with named inputs and outputs, built from steps. One Playwright project each. |
+| **Flow** | `**/<name>.flow.json` | Functions one after another on one record. Outputs pass on to later inputs by name. |
+
+Discovery goes by suffix alone: every `*.fn.ts` becomes a Playwright project, and every `*.flow.json`
+is a flow. There is no list to keep in step by hand.
+
+## The registry: every value name, once
+
+```ts
+// kit.ts, at the repo root
+export const fields = defineFields({
+  reference_no: field.text({ label: 'DataMod ref', pattern: /^DMD\d{16}$/ }),
+  mobile: field.text({ label: 'Mobile', pattern: /^\d{8}$/ }),
+  id_type: field.select({ label: 'ID type', options: ['HKID'] }),
+  password: field.secret({ label: 'Password' }),
+  user_spec: field.json<UserSpec>({ label: 'User spec', validate: validateUserSpec, form: USER_SPEC_FORM }),
+});
+export const { defineFunction, records } = createKit(fields, { records: { 'er-user': 'reference_no', member: 'registration_no' } });
+```
+
+Field kinds: `text` (with an optional `pattern`), `secret`, `select`, and `json` for a structured value
+such as a user spec. A JSON field travels as JSON text but `run` gets it parsed and typed (`input.user_spec.company`);
+its `validate` runs wherever a value is checked, and `form` is passed on for an app to draw it. In a flow
+file it can be written inline as an object.
+
+- An input or output name that isn't in the registry is a **TypeScript error**. So is returning an
+  output you didn't declare. `test/types.check.ts` proves each case.
+- Each value is checked against its rule when a function starts and when it ends, and when a flow is
+  checked: `reference_no "X" doesn't match /^DMD\d{16}$/`.
+- A `secret` is masked in logs and reports, and a flow file that holds one is refused.
+
+## Records: the framework keeps them
+
+`records` names each kind of record and the field that keys it. A function with `record: 'er-user'`:
+
+- **after it passes**, has its outputs saved to `out/records/er-user/<reference_no>.json`: the values
+  merged (latest wins) and a history of which function gave what, when;
+- **before it starts**, gets any input it wasn't given from that record, found by its key. So
+  `flowkit run example activate-er-user-web reference_no=DMD…` is enough: the ID number and mobile come
+  from the record.
+
+A flow check counts a required input as given when the record could hold it: the key is known and some
+function on that kind of record outputs that name. `flowkit records <root>` lists them. Secrets are
+saved too (a later function logs in with them), so keep `out/` git-ignored.
+
+## A step
+
+```ts
+export const verifyIdentity = defineStep<{ page: Page }, { id_number: string; mobile: string }>({
+  name: 'ID number + mobile, send OTP',
+  portal: 'web',
+  screenshot: 'activate-identity',          // optional: attached when the step passes
+  run: async ({ page }, { id_number, mobile }) => { … },
+});
+```
+
+Every step runs as a boxed `test.step` named `[web] ID number + mobile, send OTP`. Any error comes out as a
+`StepError` naming the portal and step, with the original as `cause`.
+
+## A function
+
+```ts
+// er-user/activate-er-user-web.fn.ts
+export default defineFunction({
+  id: 'activate-er-user-web',               // must equal the file name
+  title: '[Web] Activate ER User Account',
+  record: 'er-user',                        // a flow keeps to one kind of record
+  test,                                     // optional: a Playwright test with your fixtures
+  setup: ['admin-login'],                   // optional: Playwright projects to run first
+  use: { viewport: { width: 1920, height: 1080 } }, // optional, per function
+  timeout: 120_000,                         // optional
+  inputs: { reference_no: 'required', id_number: 'required', mobile: 'required', username: 'optional' },
+  outputs: ['reference_no', 'status', 'username', 'password'],
+  run: async ({ page }, input) => {         // destructure fixtures, as in any Playwright test
+    await verifyIdentity({ page }, input);
+    await setLogin({ page }, …);
+    return { reference_no: input.reference_no, status: 'ACTIVATED', … };
+  },
+});
+```
+
+`starts: true` marks a function that makes a new record; it can only be a flow's first step.
+
+Run one function by hand, with its inputs as JSON:
+
+```sh
+FLOWKIT_INPUT='{"reference_no":"DMD…","id_number":"A123456(7)","mobile":"91234567"}' \
+  npx playwright test -c example/playwright.config.ts --project=activate-er-user-web
+```
+
+Add `FLOWKIT_OUTPUT=<file>` to get its outputs as JSON.
+
+## A flow
+
+```json
+{
+  "title": "New ER user (web)",
+  "steps": [
+    { "function": "create-er-user", "values": { "company": "PCCW", "user_type": "Company AP" } },
+    { "function": "vet-er-user" },
+    { "function": "activate-er-user-web" }
+  ]
+}
+```
+
+A step's input takes its typed value, else the latest earlier output with the same name, from any
+earlier step. In the flow above, activation gets `id_number` and `mobile` from step 1, past step 2.
+
+## The Playwright config
+
+```ts
+export default defineConfig({
+  testDir: import.meta.dirname,
+  reporter: flowkitReporters(import.meta.dirname),
+  projects: [{ name: 'admin-login', testMatch: /admin-login\.setup\.ts$/ }, ...flowkitProjects(import.meta.dirname)],
+});
+```
+
+`flowkitProjects` refuses to start when a function or step file breaks the pattern, and lists why.
+
+`flowkitReporters` gives flowkit's reporter and Playwright's HTML report. After every run the reporter
+prints the records the run made or changed, the functions to run on them next with the command for each,
+and on failure what kind it was and what to do. It keeps each run that includes a function in
+`out/runs/<id>/` (`run.json`, `log.txt`, `report/`), which the app's History reads.
+
+## Kit settings
+
+`createKit(fields, { … })` also takes what the reporter and the app show for this repo:
+
+```ts
+createKit(fields, {
+  test,
+  title: 'Flows · DEV',
+  records: { 'er-user': { key: 'reference_no', label: 'ER user', summary: ['{user_type}', '@ {company}', '{username}'] } },
+  command: 'npm run fn --',                       // the resume line: `<command> <function> <key>=<ref>`
+  unsetEnv: ['HTTPS_PROXY', 'HTTP_PROXY'],        // dropped before every app run; printed as `env -u …`
+  failures: [{ kind: 'portal', match: 'Sorry!', title: 'DEV returned an error', hint: '…' }],
+  app: { options: (context) => ({ creators: […] }), summary: ['reference_no', 'scheme'] },
+});
+```
+
+- A record kind may still be just its key field (`{ 'er-user': 'reference_no' }`).
+- `summary` parts are templates; a part with a `{name}` the record has no value for is left out.
+- `failures` are tried before the built-in rules (stopped, missing `.env.local` value, input, login,
+  network, timeout); `match` and `file` are regular expressions as text, so they reach the reporter.
+- `app` holds functions, so it stays in the app's process. `options` gives the named lists forms use;
+  each record kind is a list too, and a list named after a text field is offered as its suggestions.
+
+A JSON field adds what the app needs for it: `form` (see `src/forms/types.ts`), `presets` (a folder under
+`config/`), `describe` (one line for preset lists and run summaries) and `env` (env vars a value needs).
+A select may give `labels` for its options.
+
+## The app
+
+`node src/cli.ts app <root>` serves a local web app on 127.0.0.1:4321 (`--port`, `--no-open`,
+`--data <dir>` for records, history, presets and `.env.local` somewhere else). It builds its page with
+Vite on the first start and after flowkit changes.
+
+- **Functions:** saved flows, and every function with what it can start from (presets, or the records
+  ready for it). A function page draws JSON inputs as forms, loads and saves presets, picks a record or
+  takes a typed key, fills blank inputs from the record and says which, and checks inputs and `.env.local`
+  before a run.
+- **Flows:** a builder that offers only functions that fit and shows where each blank input will come
+  from, and a page per flow run. Flow runs from the CLI appear here too (`out/flow-runs/`). The builder
+  has two modes, remembered per browser: **Form** adds steps from a list at the end; **Flow chart** draws
+  the flow from Start to End, with a palette grouped by kind of record. Drag a function onto an arrow, or
+  a step to a new place; only the arrows where the flow stays in order open (one record-making step,
+  first; the rest on the same kind of record). Each arrow shows the values handed down to the next step,
+  and each step shows its own check errors. A leading `[tag]` in a function title (e.g. `[Web]`) becomes
+  a coloured badge. A saved flow shows by its `title`; the builder keeps the title and the file name apart
+  (the file name defaults to the title in lower case).
+- **Flow run page:** a running step shows its live log; a passed one its output; a failed or stopped one
+  its error and log. A finished step has a **Report ↗** button that opens its Playwright report in a new
+  tab, when one was kept. Each step's ⋯ menu shows its input, toggles its log, and opens its run in History.
+- Confirmations and errors open in the page, never as browser pop-ups.
+- **Run, History, Records:** a live timeline with Stop, the failure explained, the records made and
+  their logins, the Playwright report and the log.
+
+One run at a time. The page is React + Vite (`ui/`); `npm run app:dev` serves it with hot reload on :5173
+while `npm run example:app` runs the API.
+
+`reporter.cts` exists for repos whose Playwright config is CommonJS (no `"type": "module"`): there
+Playwright loads flowkit's files as CommonJS, so the reporter has to be loaded the same way, or its named
+imports break. `flowkitReporters` picks the right entry.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `node src/cli.ts list <root>` | functions with their inputs (`*` = required) and outputs, steps, flows |
+| `node src/cli.ts check <root>` | every pattern problem; exits 1 when there is one |
+| `node src/cli.ts run <root> <file.flow.json> [--headed]` | run a flow, one Playwright run per function; kept in `<root>/out/flow-runs/` |
+| `node src/cli.ts run <root> <function> [name=value …]` | run one function; inputs not given come from its record |
+| `node src/cli.ts records <root>` | the records, newest first, with their history |
+| `node src/cli.ts new step <root> <area>/<name> [--portal web]` | a step file that fails until it is built |
+| `node src/cli.ts new function <root> <area>/<id> --title "…" [--record kind] [--starts] [--inputs a,b] [--optional c] [--outputs x,y]` | a function file; names are checked against the registry, with "did you mean"; a record's key is added for you |
+| `node src/cli.ts new flow <root> <name> <function> …` | a flow file with blanks for the values it still needs, and a list of them |
+| `node src/cli.ts manifest <root>` | the repo as JSON, for the config and an app |
+| `node src/cli.ts app <root> [--port 4321] [--data <dir>] [--no-open]` | the app |
+| `npm test` | unit tests (no browser) |
+| `npm run test:ui` | the app's page: components and pages with Vitest and Testing Library |
+| `npm run test:example` | the example's flows end to end in a real browser, against a fake portal, and the app on the example |
+| `npm run typecheck` | `tsc`, including the type tests, and the page |
+
+## What `check` enforces
+
+- A `*.fn.ts` default-exports one `defineFunction`, its `id` equals the file name and is unique, it
+  comes from the one shared kit, and it uses only registry names. A function on a record outputs the
+  record's key when it starts one, and takes the key as an input otherwise.
+- A `*.step.ts` exports only `defineStep` results. A helper belongs in another file.
+- A `*.flow.json` is valid: known functions, a starting function only first, one kind of record, every
+  required input typed, given by an earlier step or available from the record, typed values matching
+  their rules (a JSON value through its validator), no secrets. Flows are strictly linear.
+
+## The example
+
+`example/` runs entirely offline against a fake portal (`example/portal/`), with the cases that make
+`my-flows` hard:
+
+| Case | Where |
+|---|---|
+| A saved admin login as a setup dependency | `vet-er-user` (`setup: ['admin-login']`, `use.storageState`) |
+| A status that settles after a delay, with a long timeout | `vet-er-user` |
+| Two steps that must share one page (session in `sessionStorage`) | `activate-er-user-web`, `register-member` |
+| A page that needs a kiosk-sized viewport | `activate-er-user-kiosk` |
+| Custom fixtures | every function uses `example/portal/test.ts` |
+
+See `DESIGN.md` for the decisions and how this maps onto `my-flows`.

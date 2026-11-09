@@ -1,0 +1,20 @@
+{
+  "title": "New ER user (web)",
+  "steps": [
+    {
+      "function": "create-er-user",
+      "values": {
+        "user_spec": {
+          "company": "PCCW",
+          "user_type": "Company AP"
+        }
+      }
+    },
+    {
+      "function": "vet-er-user"
+    },
+    {
+      "function": "activate-er-user-web"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "name": "@ansonwonggg/flowright",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Steps, functions and flows for cross-portal Playwright automation: one pattern, checked.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./playwright": "./src/playwright.ts",
+    "./cli": "./src/cli.ts",
+    "./flow": "./src/flow.ts",
+    "./fields": "./src/fields.ts",
+    "./reporter": "./src/reporter.cts",
+    "./forms": "./src/forms/types.ts",
+    "./forms/engine": "./src/forms/engine.ts"
+  },
+  "bin": {
+    "flowkit": "./src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc && tsc -p ui",
+    "test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
+    "check": "node src/cli.ts check example",
+    "list": "node src/cli.ts list example",
+    "example": "playwright test -c example/playwright.config.ts",
+    "example:flow": "node src/cli.ts run example example/config/flows/new-er-user.flow.json",
+    "test:example": "node --test --test-concurrency=1 --test-reporter=spec test/example.e2e.ts test/app.e2e.ts",
+    "test:ui": "vitest run --config ui/vitest.config.mts",
+    "app:dev": "vite --config ui/vite.config.mts",
+    "example:app": "node src/cli.ts app example"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.50"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "jsdom": "29.1.1",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.104.5",
+    "@vitejs/plugin-react": "6.1.2",
+    "dotenv": "17.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router-dom": "7.18.4",
+    "vite": "8.3.5"
+  }
+}
