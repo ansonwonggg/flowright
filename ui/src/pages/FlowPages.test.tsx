@@ -256,4 +256,35 @@ describe('FlowCards', () => {
     expect(screen.getByRole('link', { name: /new-er-user/ })).toHaveTextContent('A → B');
     expect(screen.getByRole('link', { name: /New flow/ })).toHaveAttribute('href', '/flow-builder');
   });
+  it('no saved flows: only the new flow card', () => {
+    render(
+      <MemoryRouter>
+        <FlowCards flows={[]} />
+      </MemoryRouter>,
+    );
+    expect(screen.getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['/flow-builder']);
+  });
+  it('no flow has a group: no group headings', () => {
+    render(
+      <MemoryRouter>
+        <FlowCards flows={[flowPreset('a', {}), flowPreset('b', { group: ' ' })]} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link')).toHaveLength(3);
+  });
+  it('flows with a group: a headed section per group in the order met, the rest under Other, New flow last', () => {
+    render(
+      <MemoryRouter>
+        <FlowCards flows={[flowPreset('a', { group: 'Member' }), flowPreset('b', {}), flowPreset('c', { group: 'ER user' }), flowPreset('d', { group: 'Member' })]} />
+      </MemoryRouter>,
+    );
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Member', 'ER user', 'Other']);
+    const cardsIn = (name: string) => within(screen.getByRole('region', { name })).getAllByRole('link').map((l) => l.querySelector('.t')?.textContent);
+    expect(cardsIn('Member')).toEqual(['a', 'd']);
+    expect(cardsIn('ER user')).toEqual(['c']);
+    expect(cardsIn('Other')).toEqual(['b', '+ New flow']);
+  });
 });
+
+const flowPreset = (label: string, spec: object) => ({ file: `config/flows/${label}.flow.json`, label, summary: '', spec: { steps: [], ...spec } });

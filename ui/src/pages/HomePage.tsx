@@ -2,7 +2,9 @@ import { Link } from 'react-router-dom';
 import type { Fn, HistoryItem, Meta, Presets } from '../api.ts';
 import { StatusPill } from '../components/bits.tsx';
 import { FnTitle } from '../components/FnTitle.tsx';
+import { Grouped } from '../components/Grouped.tsx';
 import { duration, when } from '../lib/format.ts';
+import { groupItems } from '../lib/groups.ts';
 import { useHistory, useLive, useMeta, usePresets } from '../queries.ts';
 import { presetsFor } from './FunctionPage.tsx';
 import { FlowCards } from './FlowsPage.tsx';
@@ -35,6 +37,11 @@ const FunctionRow = ({ fn, meta, presets }: { fn: Fn; meta: Meta; presets?: Pres
     </span>
     <span className="n">{cardNote(fn, meta, presets)}</span>
   </Link>
+);
+
+/** The function rows, under a heading per function `group` when any has one. */
+export const FunctionList = ({ fns, meta, presets }: { fns: Fn[]; meta: Meta; presets?: Presets }) => (
+  <Grouped groups={groupItems(fns, (fn) => fn.group)} listClass="fnlist" render={(fn) => <FunctionRow key={fn.id} fn={fn} meta={meta} presets={presets} />} />
 );
 
 const RecentRuns = ({ runs }: { runs: HistoryItem[] }) => (
@@ -82,11 +89,7 @@ export const HomePage = () => {
       <h2>Flows</h2>
       <FlowCards flows={presets?.flows ?? []} />
       <h2>Run one function</h2>
-      <div className="fnlist">
-        {meta.functions.map((fn) => (
-          <FunctionRow key={fn.id} fn={fn} meta={meta} presets={presets} />
-        ))}
-      </div>
+      <FunctionList fns={meta.functions} meta={meta} presets={presets} />
       <h2>
         Recent runs <Link className="h2-link" to="/history">all →</Link>
       </h2>

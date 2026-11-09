@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FieldJson } from '../api.ts';
 import { FIELDS, FUNCTIONS } from './fixtures.test-utils.ts';
-import { draftFrom, dropGaps, flowOf, titleOf, formOf, inOrder, inputSource, insertAt, moveTo, newStep, placeholderFor } from './flowDraft.ts';
+import { draftFrom, dropGaps, flowOf, groupOf, titleOf, formOf, inOrder, inputSource, insertAt, moveTo, newStep, placeholderFor } from './flowDraft.ts';
 
 const options = { creators: [{ value: 'ER', label: 'ER' }], userTypes: [{ value: 'Company AP', label: 'Company AP' }] };
 const fieldOf = (name: string) => FIELDS.find((f) => f.name === name)!;
@@ -39,6 +39,10 @@ describe('draftFrom / flowOf', () => {
   it('text values that are blank are dropped; a JSON input that comes out empty is left out', () =>
     expect(flowOf([{ key: 'k', fn: 'member-register', values: { mobile: ' ' }, forms: { member_spec: {} } }], FIELDS)).toEqual({ steps: [{ function: 'member-register' }] }));
   it('a blank title is left out', () => expect(flowOf([], FIELDS, '  ')).toEqual({ steps: [] }));
+  it('a group is kept, trimmed; a blank one is left out', () => {
+    expect(flowOf([], FIELDS, 'T', ' Member ')).toEqual({ title: 'T', group: 'Member', steps: [] });
+    expect(flowOf([], FIELDS, '', '  ')).toEqual({ steps: [] });
+  });
   it('unknown functions and non-string values: kept as functions, values dropped', () =>
     expect(draftFrom(FUNCTIONS, FIELDS, { steps: [{ function: 'nope', values: { a: 1, b: 'x' } }] }, options)).toMatchObject([{ fn: 'nope', values: { b: 'x' }, forms: {} }]));
   for (const def of [undefined, null, {}, { steps: 'x' }]) it(`no steps in ${JSON.stringify(def)}`, () => expect(draftFrom(FUNCTIONS, FIELDS, def, options)).toEqual([]));
@@ -127,4 +131,9 @@ describe('dropGaps', () => {
 describe('titleOf', () => {
   it("a saved flow's title, trimmed", () => expect(titleOf({ title: ' New ER user ', steps: [] })).toBe('New ER user'));
   for (const def of [undefined, null, 'x', [], {}, { title: 3 }, { title: '  ' }]) it(`none in ${JSON.stringify(def)}`, () => expect(titleOf(def)).toBe(''));
+});
+
+describe('groupOf', () => {
+  it("a saved flow's group, trimmed", () => expect(groupOf({ group: ' Member ', steps: [] })).toBe('Member'));
+  for (const def of [undefined, null, 'x', [], {}, { group: 3 }, { group: '  ' }]) it(`none in ${JSON.stringify(def)}`, () => expect(groupOf(def)).toBe(''));
 });

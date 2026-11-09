@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { FIELDS, FUNCTIONS, META, record, run } from '../lib/fixtures.test-utils
 import { ago, duration, who } from '../lib/format.ts';
 import { eligible, presetsFor } from './FunctionPage.tsx';
 import { matchesHistory } from './HistoryPage.tsx';
-import { cardNote } from './HomePage.tsx';
+import { cardNote, FunctionList } from './HomePage.tsx';
 
 const fnOf = (id: string) => FUNCTIONS.find((f) => f.id === id)!;
 const fieldOf = (name: string) => FIELDS.find((f) => f.name === name)!;
@@ -196,5 +196,28 @@ describe('ValueInput', () => {
   it('no suggestion list: no datalist', () => {
     render(<Harness field={fieldOf('username')} />);
     expect(screen.getByLabelText('Username')).not.toHaveAttribute('list');
+  });
+});
+
+describe('FunctionList', () => {
+  const list = (fns: typeof FUNCTIONS) =>
+    render(
+      <MemoryRouter>
+        <FunctionList fns={fns} meta={META} presets={PRESETS} />
+      </MemoryRouter>,
+    );
+  it('no function has a group: one flat list, no headings', () => {
+    list(FUNCTIONS);
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link')).toHaveLength(FUNCTIONS.length);
+  });
+  it('functions with a group: a headed section per group in list order, the rest under Other', () => {
+    const [a, b, c, ...rest] = FUNCTIONS;
+    list([{ ...a, group: 'Web' }, { ...b, group: 'Admin' }, { ...c, group: 'Web' }, ...rest]);
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Web', 'Admin', 'Other']);
+    const idsIn = (name: string) => within(screen.getByRole('region', { name })).getAllByRole('link').map((l) => l.getAttribute('href'));
+    expect(idsIn('Web')).toEqual([`/fn/${a.id}`, `/fn/${c.id}`]);
+    expect(idsIn('Admin')).toEqual([`/fn/${b.id}`]);
+    expect(idsIn('Other')).toEqual(rest.map((f) => `/fn/${f.id}`));
   });
 });

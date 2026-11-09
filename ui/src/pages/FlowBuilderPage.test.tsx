@@ -152,6 +152,17 @@ describe('FlowBuilderPage title and file name', () => {
     expect(screen.getByLabelText('File name')).toHaveValue('new-er-user');
   });
 
+  it("a saved flow's group shows in Group, and Save keeps it, edited", async () => {
+    save.mutateAsync.mockResolvedValue({ file: 'config/flows/new-member.flow.json' });
+    savedFlows = [{ file: 'config/flows/new-member.flow.json', label: 'New member', summary: '', spec: { title: 'New member', group: 'Member', steps: [{ function: 'create-user' }] } }];
+    page('/flow-builder?preset=config%2Fflows%2Fnew-member.flow.json');
+    await openSave();
+    expect(screen.getByLabelText('Group')).toHaveValue('Member');
+    await userEvent.type(screen.getByLabelText('Group'), ' (kiosk)');
+    await userEvent.click(screen.getByRole('button', { name: 'Save as preset' }));
+    expect(save.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ flow: expect.objectContaining({ title: 'New member', group: 'Member (kiosk)' }) }));
+  });
+
   it('a saved flow without a title: the file name is the heading; Title stays blank', async () => {
     savedFlows = [{ file: 'config/flows/x/old.flow.json', label: 'x/old', summary: '', spec: { steps: [] } }];
     page('/flow-builder?preset=config%2Fflows%2Fx%2Fold.flow.json');

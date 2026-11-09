@@ -46,11 +46,12 @@ export const draftFrom = (fns: Fn[], fields: FieldJson[], def: unknown, options:
 };
 
 /**
- * The flow the server checks, runs or saves: blank text values dropped, each JSON input built from its
- * form and left out when it comes out empty.
+ * The flow the server checks, runs or saves: title and group trimmed and left out when blank, blank text
+ * values dropped, each JSON input built from its form and left out when it comes out empty.
  */
-export const flowOf = (steps: DraftStep[], fields: FieldJson[], title?: string): FlowDef => ({
+export const flowOf = (steps: DraftStep[], fields: FieldJson[], title?: string, group?: string): FlowDef => ({
   ...(title?.trim() && { title: title.trim() }),
+  ...(group?.trim() && { group: group.trim() }),
   steps: steps.map((step) => {
     const text = Object.entries(step.values).filter(([, v]) => v.trim() !== '');
     const json = Object.entries(step.forms).flatMap(([name, values]) => {
@@ -118,8 +119,13 @@ export const dropGaps = (fns: Fn[], ids: string[], dragged: Dragged): boolean[] 
     return inOrder(fns, moveTo(ids, dragged.from, gap));
   });
 
-/** A saved flow's `title`, trimmed; blank when it has none or isn't a flow object. */
-export const titleOf = (def: unknown): string => {
-  const title = def && typeof def === 'object' && !Array.isArray(def) ? (def as { title?: unknown }).title : undefined;
-  return typeof title === 'string' ? title.trim() : '';
+const textOf = (def: unknown, key: 'title' | 'group'): string => {
+  const value = def && typeof def === 'object' && !Array.isArray(def) ? (def as Record<string, unknown>)[key] : undefined;
+  return typeof value === 'string' ? value.trim() : '';
 };
+
+/** A saved flow's `title`, trimmed; blank when it has none or isn't a flow object. */
+export const titleOf = (def: unknown): string => textOf(def, 'title');
+
+/** A saved flow's `group`, trimmed; blank when it has none or isn't a flow object. */
+export const groupOf = (def: unknown): string => textOf(def, 'group');

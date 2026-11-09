@@ -30,6 +30,7 @@ export type FunctionMeta = {
   id: string;
   title: string;
   detail: string;
+  group?: string;
   order?: number;
   record?: string;
   recordKey?: string;
@@ -63,6 +64,7 @@ export const metaOf = (fn: FunctionDef): FunctionMeta => ({
   id: fn.id,
   title: fn.title,
   detail: fn.detail,
+  ...(fn.group && { group: fn.group }),
   ...(fn.order !== undefined && { order: fn.order }),
   ...(fn.record && { record: fn.record }),
   ...(fn.recordKey && { recordKey: fn.recordKey }),
@@ -109,6 +111,8 @@ const register = (fn: FunctionDef) => {
  *
  * `defineFunction` declares one runnable function; put it as the default export of `<id>.fn.ts`.
  * - `inputs`: name → `required` | `optional`. `outputs`: the names `run` may return.
+ * - `group`: the heading the app lists it under, e.g. `Web` or `Member`. Blank or left out: listed under
+ *   "Other", or with no headings at all when no function has one. Trimmed.
  * - `order`: where it sorts in lists, lowest first; functions without one come last, by file name.
  * - `record`: what kind of record it works on (e.g. `er-user`); a flow keeps to one kind. After the
  *   function passes, its outputs are saved to that record; before it starts, any input not given is
@@ -151,6 +155,7 @@ export const createKit = <
     id: string;
     title: string;
     detail?: string;
+    group?: string;
     order?: number;
     record?: keyof R & string;
     starts?: boolean;
@@ -169,6 +174,7 @@ export const createKit = <
       id: spec.id,
       title: spec.title,
       detail: spec.detail ?? '',
+      ...(spec.group?.trim() && { group: spec.group.trim() }),
       ...(spec.order !== undefined && { order: spec.order }),
       ...(spec.record && { record: spec.record, recordKey: kinds[spec.record]?.key }),
       starts: spec.starts ?? false,

@@ -77,6 +77,10 @@ describe('cleanFlow', () => {
       title: 'T',
       steps: [{ function: 'a', values: { x: '1', s: '{"company":"P"}' } }],
     }));
+  test('keeps a group, trimmed; a blank or non-text one is dropped', () => {
+    expect(cleanFlow({ group: ' Member ', steps: [] })).toEqual({ group: 'Member', steps: [] });
+    for (const group of ['  ', 3, null]) expect(cleanFlow({ group, steps: [] })).toEqual({ steps: [] });
+  });
   test('a step without values has none', () => expect(cleanFlow({ steps: [{ function: 'a', values: {} }] })).toEqual({ steps: [{ function: 'a' }] }));
   for (const body of [undefined, null, 'x', {}, { steps: 'x' }]) test(`no steps: ${JSON.stringify(body)}`, () => expect(cleanFlow(body)).toEqual({ steps: [] }));
   test('junk steps become blank ones, for flowProblems to name', () =>

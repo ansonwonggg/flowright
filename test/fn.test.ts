@@ -24,10 +24,14 @@ describe('defineFunction', () => {
     assert.equal(createKit(fields, { test: fakeTest, recordsDir: 'data/r' }).defineFunction({ id: 'x', ...base }).recordsDir, 'data/r');
   });
   it('keeps every option in the meta', () => {
-    const fn = defineFunction({ id: 'vet', ...base, detail: 'd', order: 3, record: 'user', starts: true, env: ['E'], setup: ['login'], timeout: 5, use: { viewport: { width: 1, height: 2 } } });
+    const fn = defineFunction({ id: 'vet', ...base, detail: 'd', group: 'Web', order: 3, record: 'user', starts: true, env: ['E'], setup: ['login'], timeout: 5, use: { viewport: { width: 1, height: 2 } } });
     assert.deepEqual(metaOf(fn), {
-      id: 'vet', title: 'Vet', detail: 'd', order: 3, record: 'user', recordKey: 'ref', starts: true, inputs: { ref: 'required' }, outputs: ['status'], env: ['E'], setup: ['login'], timeout: 5, use: { viewport: { width: 1, height: 2 } },
+      id: 'vet', title: 'Vet', detail: 'd', group: 'Web', order: 3, record: 'user', recordKey: 'ref', starts: true, inputs: { ref: 'required' }, outputs: ['status'], env: ['E'], setup: ['login'], timeout: 5, use: { viewport: { width: 1, height: 2 } },
     });
+  });
+  it('a group is trimmed; a blank one is left out of the meta', () => {
+    assert.equal(metaOf(defineFunction({ id: 'vet', ...base, group: ' Admin DDE ' })).group, 'Admin DDE');
+    for (const group of ['', '   ']) assert.equal('group' in metaOf(defineFunction({ id: 'vet', ...base, group })), false);
   });
   for (const id of ['Vet', 'vet_user', '1vet', ''])
     it(`refuses the id "${id}"`, () => assert.throws(() => defineFunction({ id, ...base }), /must be kebab-case/));

@@ -8,8 +8,11 @@ import { cleanValues, type Values } from './values.ts';
  */
 export type FlowStep = { function: string; values?: Record<string, unknown> };
 
-/** A `*.flow.json` file: functions run one after another on one record. */
-export type FlowDef = { title?: string; steps: FlowStep[] };
+/**
+ * A `*.flow.json` file: functions run one after another on one record. `group` is the heading the app
+ * lists the flow under; flows without one go under "Other", or show with no headings when none has one.
+ */
+export type FlowDef = { title?: string; group?: string; steps: FlowStep[] };
 
 /** Where a flow step stands. `waiting` steps after a failed or stopped one never run. */
 export type StepStatus = 'waiting' | 'running' | 'passed' | 'failed' | 'stopped';

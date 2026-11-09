@@ -74,6 +74,7 @@ Every step runs as a boxed `test.step` named `[web] ID number + mobile, send OTP
 export default defineFunction({
   id: 'activate-er-user-web',               // must equal the file name
   title: '[Web] Activate ER User Account',
+  group: 'ER user',                         // optional: the heading the app lists it under
   record: 'er-user',                        // a flow keeps to one kind of record
   test,                                     // optional: a Playwright test with your fixtures
   setup: ['admin-login'],                   // optional: Playwright projects to run first
@@ -91,6 +92,10 @@ export default defineFunction({
 
 `starts: true` marks a function that makes a new record; it can only be a flow's first step.
 
+`group` (a function's, or a flow file's `"group"`) puts it under that heading on the app's Home and Flows
+pages, groups in the order first met. When anything has a group, the rest are listed under "Other"; when
+nothing has one, the lists show with no headings. The flow builder's Save… panel edits a flow's group.
+
 Run one function by hand, with its inputs as JSON:
 
 ```sh
@@ -105,6 +110,7 @@ Add `FLOWKIT_OUTPUT=<file>` to get its outputs as JSON.
 ```json
 {
   "title": "New ER user (web)",
+  "group": "ER user",
   "steps": [
     { "function": "create-er-user", "values": { "company": "PCCW", "user_type": "Company AP" } },
     { "function": "vet-er-user" },

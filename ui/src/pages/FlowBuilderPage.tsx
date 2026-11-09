@@ -5,7 +5,7 @@ import { ApiError, type Meta, type Preset } from '../api.ts';
 import { useDialog } from '../components/Dialog.tsx';
 import { RunBar } from '../components/RunBar.tsx';
 import { fileNameOf, slugify } from '../lib/flowChart.ts';
-import { draftFrom, flowOf, newStep, titleOf, type DraftStep } from '../lib/flowDraft.ts';
+import { draftFrom, flowOf, groupOf, newStep, titleOf, type DraftStep } from '../lib/flowDraft.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
 import { DragSteps } from './DragSteps.tsx';
 import { StepCard } from './StepCard.tsx';
@@ -22,6 +22,7 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
   const navigate = useNavigate();
   const [steps, setSteps] = useState<DraftStep[]>(() => (initial ? draftFrom(meta.functions, meta.fields, initial.spec, meta.options) : []));
   const [title, setTitle] = useState(() => titleOf(initial?.spec));
+  const [group, setGroup] = useState(() => groupOf(initial?.spec));
   const [fileName, setFileName] = useState(() => fileNameOf(initial?.file));
   const [headed, setHeaded] = useState(() => readPref('headed') === '1');
   const [mode, setMode] = useState<BuilderMode>(() => (readPref('builderMode') === 'drag' ? 'drag' : 'form'));
@@ -32,7 +33,7 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
   const save = useSaveFlow();
   const { confirm, notify, dialog } = useDialog();
 
-  const flow = flowOf(steps, meta.fields, title);
+  const flow = flowOf(steps, meta.fields, title, group);
   const check = useFlowCheck(flow);
   const errors = check.data?.errors ?? [];
   const warnings = check.data?.warnings ?? [];
@@ -123,6 +124,11 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
               <input id="flow-file" type="text" value={fileName} placeholder={slugify(title) || 'e.g. new-er-user'} onChange={(e) => setFileName(e.target.value)} />
               <div className="hint">{saveAs ? `Saves to config/flows/${saveAs}.flow.json` : 'Where Save puts it, under config/flows/.'}</div>
             </div>
+          </div>
+          <div className="field">
+            <label htmlFor="flow-group">Group</label>
+            <input id="flow-group" type="text" value={group} placeholder="e.g. Member" onChange={(e) => setGroup(e.target.value)} />
+            <div className="hint">The heading it is listed under on Home and Flows. Blank: under Other.</div>
           </div>
           <div className="inline">
             <button type="button" className="btn" disabled={!saveAs || !steps.length} onClick={() => saveFlow()}>

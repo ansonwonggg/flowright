@@ -63,14 +63,15 @@ export const summarize = (input: unknown, fields: Fields, shown?: string[]): str
 };
 
 /**
- * A flow the page sent, reduced to what a run needs: each step's function and its values. Anything else
- * is dropped; `flowProblems` then says what is wrong with what is left.
+ * A flow the page sent, reduced to its title and group (trimmed, left out when blank) and each step's
+ * function and values. Anything else is dropped; `flowProblems` then says what is wrong with what is left.
  */
 export const cleanFlow = (body: unknown): FlowDef => {
-  const raw = (body as { steps?: unknown; title?: unknown } | null) ?? {};
+  const raw = (body as { steps?: unknown; title?: unknown; group?: unknown } | null) ?? {};
   const steps = Array.isArray(raw.steps) ? raw.steps : [];
   return {
     ...(typeof raw.title === 'string' && raw.title.trim() && { title: raw.title.trim() }),
+    ...(typeof raw.group === 'string' && raw.group.trim() && { group: raw.group.trim() }),
     steps: steps.map((s) => {
       const step = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>;
       const values = step.values && typeof step.values === 'object' && !Array.isArray(step.values) ? cleanValues(step.values as Record<string, unknown>) : {};
