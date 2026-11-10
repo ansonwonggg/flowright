@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: App page tests
+        run: npm run test:ui
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build, then the example end to end
+        run: npm run test:example
+
+      - name: What would be published
+        run: npm pack --dry-run --ignore-scripts
+
+      - name: Keep the example's runs when it fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-runs
+          path: |
+            example/out/runs
+            example/out/flow-runs
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
