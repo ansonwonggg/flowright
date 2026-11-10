@@ -4,11 +4,21 @@ import type { HistoryItem, Meta, RecordRow, ShownStatus } from '../api.ts';
 import { duration, when, who } from '../lib/format.ts';
 import { FnTitle } from './FnTitle.tsx';
 
-/** A run's status as a coloured pill. `testId` lets tests find the one on the run page. */
-export const StatusPill = ({ status, testId }: { status: ShownStatus; testId?: string }) => (
-  <span className={`pill ${status}`} data-testid={testId}>
+/** The pill class for a run, flow or step status: `stopped` takes the `interrupted` colour, `waiting` and `skipped` none. */
+export const pillOf = (status: string): string => ({ stopped: 'interrupted', waiting: '', skipped: '' })[status] ?? status;
+
+/** A run, flow or step status as a coloured pill (see {@link pillOf}). `testId` lets tests find a page's main one. */
+export const StatusPill = ({ status, testId }: { status: ShownStatus | string; testId?: string }) => (
+  <span className={`pill ${pillOf(status)}`} data-testid={testId}>
     {status}
   </span>
+);
+
+/** "Report ↗": the Playwright report kept for run `runId`, in a new tab. Assumes the run kept one. */
+export const ReportLink = ({ runId }: { runId: string }) => (
+  <a className="btn small" href={`/runs/${encodeURIComponent(runId)}/report/`} target="_blank" rel="noreferrer" title="Playwright report: screenshots, trace, errors">
+    Report ↗
+  </a>
 );
 
 /** A record stage as a chip: green when no function is left to run on it, amber otherwise. */

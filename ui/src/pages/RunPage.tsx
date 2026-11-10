@@ -1,41 +1,38 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Meta, RunInfo } from '../api.ts';
-import { useDialog } from '../components/Dialog.tsx';
-import { RecordCard, StatusPill } from '../components/bits.tsx';
+import { RecordCard } from '../components/bits.tsx';
 import { FnTitle } from '../components/FnTitle.tsx';
 import { Log } from '../components/Log.tsx';
+import { RunHead } from '../components/RunHead.tsx';
 import { Timeline } from '../components/Timeline.tsx';
+import { Values } from '../components/Values.tsx';
 import { duration, when } from '../lib/format.ts';
 import { useNow } from '../lib/hooks.ts';
-import { useMeta, useRecords, useRun, useStopRun } from '../queries.ts';
-
-const shown = (value: string) => {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return parsed && typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : value;
-  } catch {
-    return value;
-  }
-};
+import { useFlowRun, useMeta, useRecords, useRun } from '../queries.ts';
 
 const Parameters = ({ run, meta }: { run: RunInfo; meta?: Meta }) => {
   const label = (name: string) => meta?.fields.find((f) => f.name === name)?.label ?? name;
-  const rows = [...Object.entries(run.input ?? {}).map(([k, v]) => [label(k), shown(v)]), ['Browser', run.headed ? 'shown' : 'headless']];
   return (
     <details className="card fold">
       <summary>
         <b>Parameters</b> <span className="muted">{run.summary}</span>
       </summary>
-      <div className="kv two gap-top">
-        {rows.map(([k, v]) => (
-          <div key={k} className="kv-row">
-            <span className="k">{k}</span>
-            <span className="v">{v.includes('\n') ? <pre>{v}</pre> : v}</span>
-          </div>
-        ))}
+      <div className="gap-top">
+        <Values values={run.input} label="Parameters" nameOf={label} />
+        <div className="muted gap-top">
+          Browser: <span>{run.headed ? 'shown' : 'headless'}</span>
+        </div>
       </div>
     </details>
   );
+};
+
+const useBack = (): { to: string; label: string } => {
+  const [params] = useSearchParams();
+  const flowId = params.get('flow') ?? '';
+  const { data: flow } = useFlowRun(flowId);
+  if (!flowId) return { to: '/history', label: 'History' };
+  return { to: `/flow-run/${flowId}`, label: flow?.name || 'Flow run' };
 };
 
 export const RunPage = () => {
@@ -43,58 +40,31 @@ export const RunPage = () => {
   const { data, error } = useRun(id);
   const { data: meta } = useMeta();
   const { data: records = [] } = useRecords();
-  const stop = useStopRun();
-  const { confirm, notify, dialog } = useDialog();
+  const back = useBack();
   const live = Boolean(data?.run.live);
   const now = useNow(live);
 
   if (error)
     return (
       <div className="empty">
-        {error.message} <Link to="/history">Back to history</Link>
+        {error.message} <Link to={back.to}>Back to {back.label}</Link>
       </div>
     );
   if (!data) return <div className="empty">Loading…</div>;
   const { run, log } = data;
   const fn = meta?.functions.find((f) => f.id === run.project);
 
-  const onStop = async () => {
-    if (!(await confirm({ title: 'Stop this run?', body: 'Whatever DEV already accepted stays there.', ok: 'Stop', tone: 'danger' }))) return;
-    try {
-      await stop.mutateAsync();
-    } catch (e) {
-      await notify('Could not stop the run', (e as Error).message);
-    }
-  };
-
   return (
     <div className="focus">
-      {dialog}
-      <Link className="crumb" to="/history">
-        ← History
-      </Link>
-      <div className="pagehead">
-        <h1>
-          <FnTitle title={run.title} />
-        </h1>
-        <StatusPill status={run.status} testId="run-status" />
-        <span className="spacer" />
-        {fn && !live && (
-          <Link className="btn small" to={`/fn/${fn.id}?run=${run.id}`}>
-            Run again
-          </Link>
-        )}
-        {run.hasReport && (
-          <a className="btn small" href={`/runs/${run.id}/report/`} target="_blank" rel="noreferrer" title="Screenshots, trace, errors">
-            Playwright report ↗
-          </a>
-        )}
-        {live && run.status !== 'stopping' && (
-          <button type="button" className="btn danger small" onClick={onStop}>
-            Stop
-          </button>
-        )}
-      </div>
+      <RunHead
+        back={back}
+        title={<FnTitle title={run.title} />}
+        status={run.status}
+        statusTestId="run-status"
+        rerunTo={fn && !live ? `/fn/${fn.id}?run=${run.id}` : undefined}
+        reportOf={run.hasReport ? run.id : undefined}
+        stoppable={live && run.status !== 'stopping'}
+      />
       <p className="lead">
         {when(run.startedAt)} · {duration((run.endedAt ?? now) - run.startedAt)}
         {run.summary ? ` · ${run.summary}` : ''}

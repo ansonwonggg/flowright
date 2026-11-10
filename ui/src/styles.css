@@ -254,6 +254,8 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .val .v { font-family: ui-monospace, Menlo, monospace; font-size: 13px; font-weight: 600; word-break: break-all; }
 .val .btn { position: absolute; top: 6px; right: 6px; padding: 1px 8px; font-size: 11px; opacity: 0; transition: opacity .12s; }
 .val:hover .btn, .val .btn:focus-visible { opacity: 1; }
+.val.wide { grid-column: 1 / -1; }
+.val pre.v { margin: 4px 0 0; font-weight: 400; font-size: 12px; }
 .val:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
 
 /* ---------- Run timeline ---------- */

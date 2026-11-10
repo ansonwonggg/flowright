@@ -20,7 +20,7 @@ export const useLive = () => useQuery({ queryKey: keys.live, queryFn: api.live, 
 export const useRun = (id: string) => useQuery({ queryKey: keys.run(id), queryFn: () => api.run(id), staleTime: Infinity, retry: false });
 
 export const useFlowRuns = () => useQuery({ queryKey: keys.flowRuns, queryFn: api.flowRuns });
-export const useFlowRun = (id: string) => useQuery({ queryKey: keys.flowRun(id), queryFn: () => api.flowRun(id), retry: false });
+export const useFlowRun = (id: string) => useQuery({ queryKey: keys.flowRun(id), queryFn: () => api.flowRun(id), retry: false, enabled: Boolean(id) });
 
 export const useFlowCheck = (flow: FlowDef) =>
   useQuery({ queryKey: ['check-flow', JSON.stringify(flow)], queryFn: () => api.checkFlow(flow), placeholderData: keepPreviousData });

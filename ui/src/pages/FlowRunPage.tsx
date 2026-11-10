@@ -1,35 +1,18 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { conditionText, isIf } from '../../../src/flow.ts';
 import type { FlowRun, FlowRunStep } from '../api.ts';
-import { CopyButton } from '../components/bits.tsx';
+import { pillOf, ReportLink, StatusPill } from '../components/bits.tsx';
 import { FlowCanvas } from '../components/FlowCanvas.tsx';
 import { FnTitle } from '../components/FnTitle.tsx';
 import { Log } from '../components/Log.tsx';
 import { Menu, type MenuItem } from '../components/Menu.tsx';
+import { RunHead } from '../components/RunHead.tsx';
+import { Values } from '../components/Values.tsx';
 import { autoSelected } from '../lib/canvas.ts';
 import { duration, when } from '../lib/format.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
-import { useFlowRun, useRun, useStopRun } from '../queries.ts';
-
-/** The pill class for a flow or step status, reusing the run colours. */
-export const pillOf = (status: string): string => ({ stopped: 'interrupted', waiting: '', skipped: '' })[status] ?? status;
-
-const Values = ({ values, label }: { values?: Record<string, string>; label: string }) => {
-  const rows = Object.entries(values ?? {});
-  if (!rows.length) return <div className="muted">—</div>;
-  return (
-    <div className="vals" aria-label={label}>
-      {rows.map(([k, v]) => (
-        <div key={k} className="val">
-          <span className="k">{k}</span>
-          <span className="v">{v}</span>
-          <CopyButton text={v} />
-        </div>
-      ))}
-    </div>
-  );
-};
+import { useFlowRun, useRun } from '../queries.ts';
 
 const IfDetail = ({ step, steps }: { step: FlowRunStep; steps: FlowRun['steps'] }) => {
   if (!isIf(step)) return null;
@@ -64,7 +47,7 @@ const SkipNote = ({ step, steps }: { step: FlowRunStep; steps: FlowRun['steps'] 
  * One flow step's details: title, status, Report ↗ and ⋯ menu, then its error, input (behind the
  * menu), output and log; an IF shows what it tested and which branch it took, a skipped step why.
  */
-const StepDetail = ({ step, n, steps }: { step: FlowRunStep; n: number; steps: FlowRun['steps'] }) => {
+const StepDetail = ({ step, n, steps, flowId }: { step: FlowRunStep; n: number; steps: FlowRun['steps']; flowId: string }) => {
   const [showInput, setShowInput] = useState(false);
   const [logChoice, setLogChoice] = useState<boolean>();
   const running = step.status === 'running';
@@ -78,7 +61,7 @@ const StepDetail = ({ step, n, steps }: { step: FlowRunStep; n: number; steps: F
           ...(step.runId
             ? [
                 { label: 'Log', checked: logShown, onSelect: () => setLogChoice(!logShown) },
-                { label: 'Open in History', to: `/run/${step.runId}` },
+                { label: 'Open in History', to: `/run/${step.runId}?flow=${encodeURIComponent(flowId)}` },
               ]
             : []),
         ];
@@ -88,9 +71,7 @@ const StepDetail = ({ step, n, steps }: { step: FlowRunStep; n: number; steps: F
         <span className="st-title">{isIf(step) ? step.title : <FnTitle title={step.title} />}</span>
         <span className="spacer" />
         <span className="inline">
-          <span className={`pill ${pillOf(step.status)}`} data-testid={`step-${n}-status`}>
-            {step.status}
-          </span>
+          <StatusPill status={step.status} testId={`step-${n}-status`} />
           {(step.status === 'passed' || ended) && step.runId && <StepReport runId={step.runId} />}
           {items.length > 0 && <Menu label={`Step ${n} options`} items={items} />}
         </span>
@@ -121,25 +102,20 @@ const dotOf = (step: FlowRunStep, n: number) => {
   return { passed: '✓', failed: '✗', stopped: '✗', skipped: '↷' }[step.status as string] ?? n;
 };
 
-const StepRow = ({ step, n, steps }: { step: FlowRunStep; n: number; steps: FlowRun['steps'] }) => (
+const StepRow = ({ step, n, steps, flowId }: { step: FlowRunStep; n: number; steps: FlowRun['steps']; flowId: string }) => (
   <li aria-label={`Step ${n}`} className={`st-${pillOf(step.status) || step.status}${!isIf(step) && step.branch ? ' st-arm' : ''}`}>
     <span className="st-dot" aria-hidden="true">
       {dotOf(step, n)}
     </span>
     <div className="st-body">
-      <StepDetail step={step} n={n} steps={steps} />
+      <StepDetail step={step} n={n} steps={steps} flowId={flowId} />
     </div>
   </li>
 );
 
 const StepReport = ({ runId }: { runId: string }) => {
   const { data } = useRun(runId);
-  if (!data?.run?.hasReport) return null;
-  return (
-    <a className="btn small" href={`/runs/${encodeURIComponent(runId)}/report/`} target="_blank" rel="noreferrer" title="Playwright report: screenshots, trace, errors">
-      Report ↗
-    </a>
-  );
+  return data?.run?.hasReport ? <ReportLink runId={runId} /> : null;
 };
 
 const StepLog = ({ runId, open, label }: { runId: string; open: boolean; label: string }) => {
@@ -157,7 +133,7 @@ const StepLog = ({ runId, open, label }: { runId: string; open: boolean; label: 
 export const Steps = ({ run }: { run: FlowRun }) => (
   <ol className="stepper">
     {run.steps.map((s, i) => (
-      <StepRow key={i} step={s} n={i + 1} steps={run.steps} />
+      <StepRow key={i} step={s} n={i + 1} steps={run.steps} flowId={run.id} />
     ))}
   </ol>
 );
@@ -178,7 +154,7 @@ export const RunCanvas = ({ run }: { run: FlowRun }) => {
       {step && (
         <section className={`cv-detail st-${pillOf(step.status) || step.status}`} aria-label={`Step ${selected + 1} details`}>
           <div className="cv-detail-no">Step {selected + 1}</div>
-          <StepDetail key={selected} step={step} n={selected + 1} steps={run.steps} />
+          <StepDetail key={selected} step={step} n={selected + 1} steps={run.steps} flowId={run.id} />
         </section>
       )}
     </>
@@ -188,21 +164,19 @@ export const RunCanvas = ({ run }: { run: FlowRun }) => {
 export const FlowRunPage = () => {
   const { id = '' } = useParams();
   const { data: run, error, isPending } = useFlowRun(id);
-  const stop = useStopRun();
   const [view, setView] = useState<View>(() => (readPref('flowView') === 'list' ? 'list' : 'canvas'));
   if (isPending) return <div className="empty">Loading…</div>;
   if (error) return <div className="empty">{error.message}</div>;
   return (
     <div className={`focus${view === 'canvas' ? ' wide' : ''}`}>
-      <Link className="crumb" to="/flows">
-        ← Flows
-      </Link>
-      <div className="pagehead">
-        <h1>{run.name}</h1>
-        <span className={`pill ${pillOf(run.status)}`} data-testid="flow-status">
-          {run.status}
-        </span>
-        <span className="spacer" />
+      <RunHead
+        back={{ to: '/flows', label: 'Flows' }}
+        title={run.name}
+        status={run.status}
+        statusTestId="flow-status"
+        rerunTo={run.status === 'running' ? undefined : `/flow-builder?run=${encodeURIComponent(run.id)}`}
+        stoppable={run.status === 'running'}
+      >
         <div className="modes" role="radiogroup" aria-label="View">
           {(
             [
@@ -225,12 +199,7 @@ export const FlowRunPage = () => {
             </button>
           ))}
         </div>
-        {run.status === 'running' && (
-          <button type="button" className="btn danger small" onClick={() => stop.mutate()}>
-            Stop
-          </button>
-        )}
-      </div>
+      </RunHead>
       <p className="lead">
         Started {when(run.startedAt)}
         {run.endedAt ? ` · took ${duration(run.endedAt - run.startedAt)}` : ''}. Each step is its own run in History.

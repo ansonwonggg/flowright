@@ -8,7 +8,8 @@ import type { FlowRun } from '../api.ts';
 import { FUNCTIONS, META } from '../lib/fixtures.test-utils.ts';
 import { flowOf, type DraftStep } from '../lib/flowDraft.ts';
 import { StepCard } from './StepCard.tsx';
-import { pillOf, RunCanvas, Steps } from './FlowRunPage.tsx';
+import { pillOf } from '../components/bits.tsx';
+import { RunCanvas, Steps } from './FlowRunPage.tsx';
 import { FlowCards, passedSteps } from './FlowsPage.tsx';
 
 const Harness = ({ steps, index = 0, spy = () => {}, onRemove = () => {} }: { steps: DraftStep[]; index?: number; spy?: (s: DraftStep) => void; onRemove?: () => void }) => {
@@ -212,10 +213,10 @@ describe('flow run Steps', () => {
     expect(screen.queryByRole('region', { name: 'Step 2 log' })).toBeNull();
   });
 
-  it('the menu links to the step\'s run in History', async () => {
+  it('the menu links to the step\'s run in History, which links back to this flow run', async () => {
     show(run);
     await menu(2);
-    expect(screen.getByRole('menuitem', { name: 'Open in History' })).toHaveAttribute('href', '/run/r2');
+    expect(screen.getByRole('menuitem', { name: 'Open in History' })).toHaveAttribute('href', '/run/r2?flow=c');
   });
 
   it('a waiting step has no menu', () => {

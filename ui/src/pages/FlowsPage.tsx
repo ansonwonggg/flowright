@@ -1,13 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { isIf } from '../../../src/flow.ts';
 import type { FlowRun, Preset } from '../api.ts';
+import { StatusPill } from '../components/bits.tsx';
 import { FnTitle } from '../components/FnTitle.tsx';
 import { Grouped } from '../components/Grouped.tsx';
 import { groupOf } from '../lib/flowDraft.ts';
 import { when } from '../lib/format.ts';
 import { groupItems } from '../lib/groups.ts';
 import { useFlowRuns, usePresets } from '../queries.ts';
-import { pillOf } from './FlowRunPage.tsx';
 
 const FlowCard = ({ flow }: { flow: Preset }) => (
   <Link className="flowcard big" to={`/flow-builder?preset=${encodeURIComponent(flow.file)}`}>
@@ -72,7 +72,7 @@ export const FlowsPage = () => {
                 <tr key={r.id} className="click" onClick={() => navigate(`/flow-run/${r.id}`)}>
                   <td className="strong">{r.name}</td>
                   <td>
-                    <span className={`pill ${pillOf(r.status)}`}>{r.status}</span>
+                    <StatusPill status={r.status} />
                   </td>
                   <td className="muted">{passedSteps(r)}</td>
                   <td className="muted nowrap">{when(r.startedAt)}</td>
