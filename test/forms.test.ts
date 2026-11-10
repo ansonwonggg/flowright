@@ -44,13 +44,13 @@ describe('splitPath / joinPath', () => {
 });
 
 describe('toSpec: user form', () => {
-  const base = { creator: 'ER', company: ' PCCW ', userType: 'Company AP' };
+  const base = { creator: 'ER', company: ' Acme ', userType: 'Company AP' };
   test('trims text and leaves out empty and false values', () =>
-    expect(toSpec(USER_FORM, { ...base, email: false, schemeAccount: '' })).toEqual({ creator: 'ER', company: 'PCCW', userType: 'Company AP' }));
+    expect(toSpec(USER_FORM, { ...base, email: false, schemeAccount: '' })).toEqual({ creator: 'ER', company: 'Acme', userType: 'Company AP' }));
   test('hidden fields are left out even when filled', () =>
     expect(toSpec(USER_FORM, { ...base, schemeAccount: 'BCT', rights: [{ control: 'company', path: ['X'], role: 'Preparer' }] })).toEqual({
       creator: 'ER',
-      company: 'PCCW',
+      company: 'Acme',
       userType: 'Company AP',
     }));
   test('Scheme AP keeps its scheme account', () =>
@@ -68,7 +68,7 @@ describe('toSpec: user form', () => {
       }),
     ).toEqual({
       creator: 'ER',
-      company: 'PCCW',
+      company: 'Acme',
       userType: 'Other User',
       email: true,
       rights: [

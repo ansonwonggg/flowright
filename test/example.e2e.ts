@@ -89,7 +89,7 @@ describe('the example repo, in a real browser', { timeout: 300_000 }, () => {
 
   it('one function by id, given only the ref: the rest comes from its record', () => {
     const file = path.join(EXAMPLE, '.flowkit/create-vet.flow.json');
-    writeFileSync(file, JSON.stringify({ steps: [{ function: 'create-er-user', values: { user_spec: { company: 'PCCW', user_type: 'Company AP' } } }, { function: 'vet-er-user' }] }));
+    writeFileSync(file, JSON.stringify({ steps: [{ function: 'create-er-user', values: { user_spec: { company: 'Acme', user_type: 'Company AP' } } }, { function: 'vet-er-user' }] }));
     const ref = runFlow(file).run.values.reference_no;
     const result = cli('run', 'example', 'activate-er-user-web', `reference_no=${ref}`, 'username=etoe.byref01');
     assert.equal(result.status, 0, result.stdout + result.stderr);

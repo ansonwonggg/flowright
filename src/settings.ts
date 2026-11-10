@@ -30,7 +30,7 @@ export type KitSettings = {
 };
 
 /** Settings of a repo with no functions yet, or a kit that sets none. */
-export const DEFAULT_SETTINGS: KitSettings = { title: 'flowkit', records: {}, command: 'npx flowkit run .', unsetEnv: [], failures: [] };
+export const DEFAULT_SETTINGS: KitSettings = { title: 'flowright', records: {}, command: 'npx flowright run .', unsetEnv: [], failures: [] };
 
 /** One choice in a form list. */
 export type Option = { value: string; label: string };

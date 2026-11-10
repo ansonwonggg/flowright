@@ -55,7 +55,7 @@ export const META: Meta = {
     creators: [{ value: 'ER', label: 'ER' }],
     userTypes: [{ value: 'Company AP', label: 'Company AP' }],
     scheme: [{ value: 'BCT (MPF) Pro Choice', label: 'BCT (MPF) Pro Choice' }],
-    'er-user': [{ value: 'DMD1', label: 'DMD1 Company AP @ PCCW' }],
+    'er-user': [{ value: 'DMD1', label: 'DMD1 Company AP @ Acme' }],
   },
 };
 
@@ -82,7 +82,7 @@ export const record = (over: Partial<RecordRow> = {}): RecordRow => ({
   key: 'DMD1',
   stage: 'create-user',
   stageLabel: 'Create · SUBMITTED',
-  summary: 'DMD1 Company AP @ PCCW · Create · SUBMITTED',
+  summary: 'DMD1 Company AP @ Acme · Create · SUBMITTED',
   updatedAt: '2026-11-05T00:00:00Z',
   values: { reference_no: 'DMD1', mobile: '91234567' },
   details: [

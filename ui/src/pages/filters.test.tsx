@@ -31,7 +31,7 @@ describe('format', () => {
     expect(ago(now - 3 * 3_600_000, now)).toBe('3 h ago');
     expect(ago(now - 3 * 86_400_000, now)).toBe(new Date(now - 3 * 86_400_000).toLocaleString());
   });
-  it('who drops the ref and the stage', () => expect(who('DMD1 Company AP @ PCCW · created', 'DMD1')).toBe('Company AP @ PCCW'));
+  it('who drops the ref and the stage', () => expect(who('DMD1 Company AP @ Acme · created', 'DMD1')).toBe('Company AP @ Acme'));
 });
 
 describe('matchesHistory', () => {
@@ -115,7 +115,7 @@ describe('bits', () => {
   it('RecordCard shows the current stage, login with copy, and a run link per function that takes it', () => {
     render(
       <MemoryRouter>
-        <RecordCard made={{ kind: 'er-user', ref: 'DMD1', stage: 'create-user', stageLabel: 'Create', summary: 'DMD1 Company AP @ PCCW' }} full={record()} meta={META} />
+        <RecordCard made={{ kind: 'er-user', ref: 'DMD1', stage: 'create-user', stageLabel: 'Create', summary: 'DMD1 Company AP @ Acme' }} full={record()} meta={META} />
       </MemoryRouter>,
     );
     expect(screen.getByText('ER user')).toBeInTheDocument();

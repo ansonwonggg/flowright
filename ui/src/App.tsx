@@ -20,7 +20,7 @@ const LivePill = () => {
 export const App = () => {
   const connected = useLiveEvents();
   const { data: meta } = useMeta();
-  const title = meta?.settings.title ?? 'flowkit';
+  const title = meta?.settings.title ?? 'flowright';
   useEffect(() => {
     const before = document.title;
     document.title = title;
@@ -57,7 +57,7 @@ export const App = () => {
         </nav>
         <span className="spacer" />
         <LivePill />
-        {!connected && <span className="offline">Lost the app server, retrying… (is flowkit app still running?)</span>}
+        {!connected && <span className="offline">Lost the app server, retrying… (is flowright app still running?)</span>}
       </header>
       <main className="wrap">
         <Outlet />

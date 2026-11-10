@@ -10,7 +10,7 @@ import { newFlow, newFunction, newStep, type Generated } from './generate.ts';
 import { listRecords, RECORDS_DIR } from './records.ts';
 import { runFlow } from './runner.ts';
 
-const USAGE = `flowkit <command> <root> [...]
+const USAGE = `flowright <command> <root> [...]
 
   list <root>              the functions, steps and flows under root
   check <root>             every problem with the pattern; exits 1 when there is one

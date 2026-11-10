@@ -38,7 +38,7 @@ const FIELDS = {
   reg: field.text({ label: 'Reg' }),
   spec: field.json({ label: 'Spec', validate: (v) => (v && typeof v === 'object' && 'company' in v ? [] : ['company is required']) }),
 };
-const WEB: FlowDef = { steps: [{ function: 'create', values: { company: 'PCCW' } }, { function: 'vet' }, { function: 'activate' }] };
+const WEB: FlowDef = { steps: [{ function: 'create', values: { company: 'Acme' } }, { function: 'vet' }, { function: 'activate' }] };
 const ids = (list: FunctionMeta[]) => list.map((f) => f.id);
 
 describe('producedBefore', () => {
@@ -115,7 +115,7 @@ describe('flow run', () => {
   it('runs in turn, passing outputs on, then passes', () => {
     let run = fresh();
     assert.equal(nextStepIndex(run), 0);
-    run = stepStarted(run, 0, { company: 'PCCW' });
+    run = stepStarted(run, 0, { company: 'Acme' });
     assert.equal(nextStepIndex(run), -1);
     run = stepEnded(run, { status: 'passed', output: { ref: 'DMD1', mobile: '9' } }, 2);
     run = stepEnded(stepStarted(run, 1, {}), { status: 'passed', output: { ref: 'DMD1', status: 'SUCCEED' } }, 3);
@@ -125,7 +125,7 @@ describe('flow run', () => {
     assert.equal(nextStepIndex(run), -1);
   });
   it('a started step keeps the id of the run it started as, through to its end', () => {
-    let run = stepStarted(fresh(), 0, { company: 'PCCW' }, '20261109-112000-abcd');
+    let run = stepStarted(fresh(), 0, { company: 'Acme' }, '20261109-112000-abcd');
     assert.equal(run.steps[0].runId, '20261109-112000-abcd');
     run = stepEnded(run, { status: 'passed', output: {} }, 2);
     assert.equal(run.steps[0].runId, '20261109-112000-abcd');

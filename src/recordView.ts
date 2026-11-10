@@ -34,7 +34,7 @@ const filled = (template: string, values: Record<string, string>): string | unde
 
 /**
  * One line naming the record: its key, the kind's `summary` parts that have values, then its stage, e.g.
- * `DMD1 Company AP @ PCCW etoe.a · Activate · ACTIVATED`. A kind with no settings shows key and stage.
+ * `DMD1 Company AP @ Acme etoe.a · Activate · ACTIVATED`. A kind with no settings shows key and stage.
  */
 export const describeRecord = (record: Pick<RecordView, 'key' | 'kind' | 'values' | 'stageLabel'>, kinds: Record<string, RecordKind> = {}): string => {
   const values = record.values ?? {};

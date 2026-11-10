@@ -47,7 +47,7 @@ describe('defineFunction', () => {
 describe('kit settings', () => {
   it('defaults: record kinds labelled by name with no summary, the npx command, nothing unset, no rules', () => {
     const kit = createKit(fields, { test: fakeTest, records: { user: 'ref' } });
-    assert.deepEqual(kit.settings, { title: 'flowkit', records: { user: { key: 'ref', label: 'user', summary: [] } }, command: 'npx flowkit run .', unsetEnv: [], failures: [] });
+    assert.deepEqual(kit.settings, { title: 'flowright', records: { user: { key: 'ref', label: 'user', summary: [] } }, command: 'npx flowright run .', unsetEnv: [], failures: [] });
     assert.deepEqual(kit.defineFunction({ id: 'x', ...base }).app, {});
   });
   it('a record kind given in full, and every setting', () => {

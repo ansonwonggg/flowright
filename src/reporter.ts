@@ -238,7 +238,7 @@ export default class FlowReporter implements Reporter {
     if (touched.length) {
       out.push('', bold('Records made or updated in this run:'));
       for (const r of touched) out.push(...recordLines(r, this.fns, this.settings));
-      out.push(dim("  Full details and logins: the app's Records page, or flowkit records"));
+      out.push(dim("  Full details and logins: the app's Records page, or flowright records"));
     } else if (result.status !== 'passed') {
       out.push('', 'No records were written under out/. If the failure came after a submit, DEV may still hold something the flow did not save.');
     }

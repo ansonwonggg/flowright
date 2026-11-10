@@ -1,7 +1,32 @@
-# flowkit
+# flowright
 
-Steps, functions and flows for cross-portal Playwright automation, in one pattern that is checked
-rather than remembered. Built to replace the hand-kept pattern in `my-flows`.
+[![npm](https://img.shields.io/npm/v/@ansonwonggg/flowright)](https://www.npmjs.com/package/@ansonwonggg/flowright)
+[![CI](https://github.com/ansonwonggg/flowright/actions/workflows/ci.yml/badge.svg)](https://github.com/ansonwonggg/flowright/actions/workflows/ci.yml)
+[![License](https://img.shields.io/npm/l/@ansonwonggg/flowright)](LICENSE)
+
+Typed steps, functions and flows for Playwright automation that crosses apps, e.g. "create a user in the
+web portal → approve it in the admin portal → activate it on a kiosk". The pattern is checked by the tool
+rather than remembered by the team. flowright keeps the records each run makes, explains failures, and
+ships a local app for running functions and building flows without touching code.
+
+## Install
+
+```sh
+npm install --save-dev @ansonwonggg/flowright @playwright/test
+```
+
+Needs Node.js 24 or later (function files are TypeScript, loaded with Node's type stripping) and
+`@playwright/test` 1.50 or later. The CLI is `flowright`:
+
+```sh
+npx flowright check .        # is every step, function and flow on the pattern?
+npx flowright list .         # what's there, with inputs and outputs
+npx flowright run . my.flow.json
+npx flowright app .          # the local app on http://127.0.0.1:4321
+```
+
+Every `<root>` below is the folder that holds your `kit.ts` and `playwright.config.ts`.
+
 
 ## Three layers, one suffix each
 
@@ -18,6 +43,9 @@ is a flow. There is no list to keep in step by hand.
 
 ```ts
 // kit.ts, at the repo root
+import { createKit, defineFields, field } from '@ansonwonggg/flowright';
+import { test } from '@playwright/test';
+
 export const fields = defineFields({
   reference_no: field.text({ label: 'DataMod ref', pattern: /^DMD\d{16}$/ }),
   mobile: field.text({ label: 'Mobile', pattern: /^\d{8}$/ }),
@@ -25,7 +53,7 @@ export const fields = defineFields({
   password: field.secret({ label: 'Password' }),
   user_spec: field.json<UserSpec>({ label: 'User spec', validate: validateUserSpec, form: USER_SPEC_FORM }),
 });
-export const { defineFunction, records } = createKit(fields, { records: { 'er-user': 'reference_no', member: 'registration_no' } });
+export const { defineFunction, defineStep, records } = createKit(fields, { test, records: { 'er-user': 'reference_no', member: 'registration_no' } });
 ```
 
 Field kinds: `text` (with an optional `pattern`), `secret`, `select`, and `json` for a structured value
@@ -46,11 +74,11 @@ file it can be written inline as an object.
 - **after it passes**, has its outputs saved to `out/records/er-user/<reference_no>.json`: the values
   merged (latest wins) and a history of which function gave what, when;
 - **before it starts**, gets any input it wasn't given from that record, found by its key. So
-  `flowkit run example activate-er-user-web reference_no=DMD…` is enough: the ID number and mobile come
+  `flowright run example activate-er-user-web reference_no=DMD…` is enough: the ID number and mobile come
   from the record.
 
 A flow check counts a required input as given when the record could hold it: the key is known and some
-function on that kind of record outputs that name. `flowkit records <root>` lists them. Secrets are
+function on that kind of record outputs that name. `flowright records <root>` lists them. Secrets are
 saved too (a later function logs in with them), so keep `out/` git-ignored.
 
 ## A step
@@ -112,7 +140,7 @@ Add `FLOWKIT_OUTPUT=<file>` to get its outputs as JSON.
   "title": "New ER user (web)",
   "group": "ER user",
   "steps": [
-    { "function": "create-er-user", "values": { "company": "PCCW", "user_type": "Company AP" } },
+    { "function": "create-er-user", "values": { "company": "Acme", "user_type": "Company AP" } },
     { "function": "vet-er-user" },
     { "function": "activate-er-user-web" }
   ]
@@ -148,6 +176,9 @@ A step can branch on a value an earlier step gave:
 ## The Playwright config
 
 ```ts
+import { defineConfig } from '@playwright/test';
+import { flowkitProjects, flowkitReporters } from '@ansonwonggg/flowright/playwright';
+
 export default defineConfig({
   testDir: import.meta.dirname,
   reporter: flowkitReporters(import.meta.dirname),
@@ -157,7 +188,7 @@ export default defineConfig({
 
 `flowkitProjects` refuses to start when a function or step file breaks the pattern, and lists why.
 
-`flowkitReporters` gives flowkit's reporter and Playwright's HTML report. After every run the reporter
+`flowkitReporters` gives flowright's reporter and Playwright's HTML report. After every run the reporter
 prints the records the run made or changed, the functions to run on them next with the command for each,
 and on failure what kind it was and what to do. It keeps each run that includes a function in
 `out/runs/<id>/` (`run.json`, `log.txt`, `report/`), which the app's History reads.
@@ -169,11 +200,11 @@ and on failure what kind it was and what to do. It keeps each run that includes 
 ```ts
 createKit(fields, {
   test,
-  title: 'Flows · DEV',
+  title: 'Acme flows · staging',
   records: { 'er-user': { key: 'reference_no', label: 'ER user', summary: ['{user_type}', '@ {company}', '{username}'] } },
   command: 'npm run fn --',                       // the resume line: `<command> <function> <key>=<ref>`
   unsetEnv: ['HTTPS_PROXY', 'HTTP_PROXY'],        // dropped before every app run; printed as `env -u …`
-  failures: [{ kind: 'portal', match: 'Sorry!', title: 'DEV returned an error', hint: '…' }],
+  failures: [{ kind: 'portal', match: 'Sorry!', title: 'The portal returned an error', hint: '…' }],
   app: { options: (context) => ({ creators: […] }), summary: ['reference_no', 'scheme'] },
 });
 ```
@@ -185,20 +216,19 @@ createKit(fields, {
 - `app` holds functions, so it stays in the app's process. `options` gives the named lists forms use;
   each record kind is a list too, and a list named after a text field is offered as its suggestions.
 
-A JSON field adds what the app needs for it: `form` (see `src/forms/types.ts`), `presets` (a folder under
+A JSON field adds what the app needs for it: `form` (see `FormConfig` from `@ansonwonggg/flowright/forms`), `presets` (a folder under
 `config/`), `describe` (one line for preset lists and run summaries) and `env` (env vars a value needs).
 A select may give `labels` for its options.
 
 ## The app
 
-`node src/cli.ts app <root>` serves a local web app on 127.0.0.1:4321 (`--port`, `--no-open`,
-`--data <dir>` for records, history, presets and `.env.local` somewhere else). It builds its page with
-Vite on the first start and after flowkit changes.
+`npx flowright app <root>` serves a local web app on 127.0.0.1:4321 (`--port`, `--no-open`,
+`--data <dir>` for records, history, presets and `.env.local` somewhere else). It ships with its page built.
 
 - **Functions:** saved flows, and every function with its saved presets. A function page shows one set of
   inputs: JSON inputs as forms (load and save presets), the rest as fields, the record key among them.
   When the key names a saved record, blank inputs are filled from it, and the page says which. It checks
-  inputs and `.env.local` before a run. flowkit doesn't judge which record a function should run on, or
+  inputs and `.env.local` before a run. flowright doesn't judge which record a function should run on, or
   in what order functions should run: that is the tester's call.
 - **Records:** each record with a **Run:** link for every function that takes its kind, the key filled in.
 - **Flows:** a builder that offers every function and IF branches, and shows where each blank input will come from, and a page per flow run. Flow runs from the CLI appear here too (`out/flow-runs/`). The builder
@@ -223,31 +253,26 @@ Vite on the first start and after flowkit changes.
 - **Run, History, Records:** a live timeline with Stop, the failure explained, the records made and
   their logins, the Playwright report and the log.
 
-One run at a time. The page is React + Vite (`ui/`); `npm run app:dev` serves it with hot reload on :5173
-while `npm run example:app` runs the API.
+One run at a time.
 
 `reporter.cts` exists for repos whose Playwright config is CommonJS (no `"type": "module"`): there
-Playwright loads flowkit's files as CommonJS, so the reporter has to be loaded the same way, or its named
+Playwright loads flowright's files as CommonJS, so the reporter has to be loaded the same way, or its named
 imports break. `flowkitReporters` picks the right entry.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `node src/cli.ts list <root>` | functions with their inputs (`*` = required) and outputs, steps, flows |
-| `node src/cli.ts check <root>` | every pattern problem; exits 1 when there is one |
-| `node src/cli.ts run <root> <file.flow.json> [--headed]` | run a flow, one Playwright run per function; kept in `<root>/out/flow-runs/` |
-| `node src/cli.ts run <root> <function> [name=value …]` | run one function; inputs not given come from its record |
-| `node src/cli.ts records <root>` | the records, newest first, with their history |
-| `node src/cli.ts new step <root> <area>/<name> [--portal web]` | a step file that fails until it is built |
-| `node src/cli.ts new function <root> <area>/<id> --title "…" [--record kind] [--starts] [--inputs a,b] [--optional c] [--outputs x,y]` | a function file; names are checked against the registry, with "did you mean"; a record's key is added for you |
-| `node src/cli.ts new flow <root> <name> <function> …` | a flow file with blanks for the values it still needs, and a list of them |
-| `node src/cli.ts manifest <root>` | the repo as JSON, for the config and an app |
-| `node src/cli.ts app <root> [--port 4321] [--data <dir>] [--no-open]` | the app |
-| `npm test` | unit tests (no browser) |
-| `npm run test:ui` | the app's page: components and pages with Vitest and Testing Library |
-| `npm run test:example` | the example's flows end to end in a real browser, against a fake portal, and the app on the example |
-| `npm run typecheck` | `tsc`, including the type tests, and the page |
+| `npx flowright list <root>` | functions with their inputs (`*` = required) and outputs, steps, flows |
+| `npx flowright check <root>` | every pattern problem; exits 1 when there is one |
+| `npx flowright run <root> <file.flow.json> [--headed]` | run a flow, one Playwright run per function; kept in `<root>/out/flow-runs/` |
+| `npx flowright run <root> <function> [name=value …]` | run one function; inputs not given come from its record |
+| `npx flowright records <root>` | the records, newest first, with their history |
+| `npx flowright new step <root> <area>/<name> [--portal web]` | a step file that fails until it is built |
+| `npx flowright new function <root> <area>/<id> --title "…" [--record kind] [--starts] [--inputs a,b] [--optional c] [--outputs x,y]` | a function file; names are checked against the registry, with "did you mean"; a record's key is added for you |
+| `npx flowright new flow <root> <name> <function> …` | a flow file with blanks for the values it still needs, and a list of them |
+| `npx flowright manifest <root>` | the repo as JSON, for the config and an app |
+| `npx flowright app <root> [--port 4321] [--data <dir>] [--no-open]` | the app |
 
 ## What `check` enforces
 
@@ -264,7 +289,7 @@ imports break. `flowkitReporters` picks the right entry.
 ## The example
 
 `example/` runs entirely offline against a fake portal (`example/portal/`), with the cases that make
-`my-flows` hard:
+cross-app automation hard:
 
 | Case | Where |
 |---|---|
@@ -274,4 +299,39 @@ imports break. `flowkitReporters` picks the right entry.
 | A page that needs a kiosk-sized viewport | `activate-er-user-kiosk` |
 | Custom fixtures | every function uses `example/portal/test.ts` |
 
-See `DESIGN.md` for the decisions and how this maps onto `my-flows`.
+See [`DESIGN.md`](DESIGN.md) for the decisions behind the pattern.
+
+## Developing flowright
+
+```sh
+npm ci
+npx playwright install chromium
+```
+
+| Command | What it does |
+|---|---|
+| `npm test` | unit tests (no browser) |
+| `npm run test:ui` | the app's page: components and pages with Vitest and Testing Library |
+| `npm run test:example` | builds, then runs the example's flows end to end in a real browser against the fake portal, and the app on the example |
+| `npm run typecheck` | `tsc`, including the type tests, and the page |
+| `npm run build` | `dist/` (JS + `.d.ts`) and the app page in `ui/dist/`, which is what gets published |
+| `npm run example:app` + `npm run app:dev` | the API on the example, and the page with hot reload on :5173 |
+
+Inside this repo the CLI runs from source (`node src/cli.ts …`). The published package runs `dist/`,
+because Node won't strip types from files under `node_modules`.
+
+## Releasing
+
+Releases go out from GitHub Actions ([`release.yml`](.github/workflows/release.yml)) when a `v*` tag is
+pushed. The workflow runs the full CI first, checks the tag matches `package.json`, publishes to npm with
+provenance, and creates a GitHub release with generated notes. A version with a pre-release part
+(`0.2.0-beta.1`) is published under the `next` dist-tag instead of `latest`.
+
+```sh
+npm version minor            # or patch / major / prerelease --preid beta; commits and tags vX.Y.Z
+git push --follow-tags
+```
+
+## License
+
+[Apache-2.0](LICENSE)

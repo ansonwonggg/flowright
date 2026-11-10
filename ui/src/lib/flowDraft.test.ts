@@ -26,7 +26,7 @@ import {
 
 const options = { creators: [{ value: 'ER', label: 'ER' }], userTypes: [{ value: 'Company AP', label: 'Company AP' }] };
 const fieldOf = (name: string) => FIELDS.find((f) => f.name === name)!;
-const userSpec = { creator: 'ER', company: 'PCCW', userType: 'Company AP' };
+const userSpec = { creator: 'ER', company: 'Acme', userType: 'Company AP' };
 
 describe('formOf', () => {
   it('a JSON field with a form config', () => expect(formOf(fieldOf('user_spec'))?.blank).toEqual({ creator: '', company: '', userType: 'Company AP' }));

@@ -5,7 +5,7 @@
       "function": "create-er-user",
       "values": {
         "user_spec": {
-          "company": "PCCW",
+          "company": "Acme",
           "user_type": "Company AP"
         }
       }

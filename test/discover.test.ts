@@ -144,7 +144,7 @@ describe('manifestOf', () => {
   });
   it('no functions: the default settings', async () => {
     const m = manifestOf(await loadRepo(repo({})));
-    assert.deepEqual(m.settings, { title: 'flowkit', records: {}, command: 'npx flowkit run .', unsetEnv: [], failures: [] });
+    assert.deepEqual(m.settings, { title: 'flowright', records: {}, command: 'npx flowright run .', unsetEnv: [], failures: [] });
   });
 });
 

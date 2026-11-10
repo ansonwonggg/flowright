@@ -1,59 +1,122 @@
 {
   "name": "@ansonwonggg/flowright",
   "version": "0.1.0",
-  "private": true,
-  "description": "Steps, functions and flows for cross-portal Playwright automation: one pattern, checked.",
+  "description": "Typed steps, functions and flows for Playwright automation that crosses apps — with records, a checked pattern, a reporter and a local app to run it all.",
+  "keywords": [
+    "playwright",
+    "e2e",
+    "test-automation",
+    "test-data",
+    "flows",
+    "workflow",
+    "end-to-end",
+    "cli",
+    "reporter"
+  ],
+  "homepage": "https://github.com/ansonwonggg/flowright#readme",
+  "bugs": {
+    "url": "https://github.com/ansonwonggg/flowright/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ansonwonggg/flowright.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Anson Wong (https://github.com/ansonwonggg)",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./playwright": "./src/playwright.ts",
-    "./cli": "./src/cli.ts",
-    "./flow": "./src/flow.ts",
-    "./fields": "./src/fields.ts",
-    "./reporter": "./src/reporter.cts",
-    "./forms": "./src/forms/types.ts",
-    "./forms/engine": "./src/forms/engine.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./playwright": {
+      "types": "./dist/playwright.d.ts",
+      "default": "./dist/playwright.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "default": "./dist/cli.js"
+    },
+    "./flow": {
+      "types": "./dist/flow.d.ts",
+      "default": "./dist/flow.js"
+    },
+    "./fields": {
+      "types": "./dist/fields.d.ts",
+      "default": "./dist/fields.js"
+    },
+    "./reporter": {
+      "types": "./dist/reporter.d.cts",
+      "default": "./dist/reporter.cjs"
+    },
+    "./forms": {
+      "types": "./dist/forms/types.d.ts",
+      "default": "./dist/forms/types.js"
+    },
+    "./forms/engine": {
+      "types": "./dist/forms/engine.d.ts",
+      "default": "./dist/forms/engine.js"
+    },
+    "./package.json": "./package.json"
   },
+  "types": "./dist/index.d.ts",
   "bin": {
-    "flowkit": "./src/cli.ts"
+    "flowright": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "ui/dist"
+  ],
+  "sideEffects": [
+    "./dist/cli.js",
+    "./dist/register.js"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json && npm run build:ui",
+    "build:ui": "vite build --config ui/vite.config.mts",
+    "prepack": "npm run build",
     "typecheck": "tsc && tsc -p ui",
     "test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
     "check": "node src/cli.ts check example",
     "list": "node src/cli.ts list example",
     "example": "playwright test -c example/playwright.config.ts",
     "example:flow": "node src/cli.ts run example example/config/flows/new-er-user.flow.json",
-    "test:example": "node --test --test-concurrency=1 --test-reporter=spec test/example.e2e.ts test/app.e2e.ts",
     "test:ui": "vitest run --config ui/vitest.config.mts",
     "app:dev": "vite --config ui/vite.config.mts",
-    "example:app": "node src/cli.ts app example"
+    "example:app": "node src/cli.ts app example",
+    "pretest:example": "npm run build",
+    "test:example": "node --test --test-concurrency=1 --test-reporter=spec test/example.e2e.ts test/app.e2e.ts"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.50"
   },
+  "dependencies": {
+    "dotenv": "17.4.2"
+  },
   "devDependencies": {
     "@playwright/test": "1.62.1",
+    "@tanstack/react-query": "5.104.5",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",
     "@types/node": "24.19.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "jsdom": "29.1.1",
-    "typescript": "5.9.3",
-    "vitest": "5.0.5"
-  },
-  "engines": {
-    "node": ">=24"
-  },
-  "dependencies": {
-    "@tanstack/react-query": "5.104.5",
     "@vitejs/plugin-react": "6.1.2",
-    "dotenv": "17.4.2",
+    "jsdom": "29.1.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-router-dom": "7.18.4",
-    "vite": "8.3.5"
+    "typescript": "5.9.3",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   }
 }

@@ -5,3 +5,5 @@ playwright-report/
 example/.data/
 example/out/
 ui/dist/
+dist/
+*.tgz

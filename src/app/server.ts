@@ -345,7 +345,7 @@ const serveFile = (res: ServerResponse, file: string) => {
 };
 
 const NOT_BUILT = `<!doctype html><meta charset="utf-8"><title>flowkit</title>
-<p style="font:15px system-ui;margin:40px">The page isn't built yet. Restart <code>flowkit app</code>, which builds it.</p>`;
+<p style="font:15px system-ui;margin:40px">The page isn't built yet. Restart <code>flowright app</code>, which builds it.</p>`;
 
 const servePage = (res: ServerResponse, urlPath: string) => {
   const rel = decodeURIComponent(urlPath).replace(/^\/+/, '') || 'index.html';
@@ -519,7 +519,7 @@ export const startApp = async (options: { root: string; dataRoot?: string; port:
   FIELDS = REPO.fields;
   MANIFEST = manifestOf(REPO);
   const problemLines = REPO.problems.map((p) => `- ${p.file}: ${p.message}`);
-  if (problemLines.length) console.warn(['flowkit problems:', ...problemLines].join('\n'));
+  if (problemLines.length) console.warn(['flowright problems:', ...problemLines].join('\n'));
   const server = createServer((req, res) => {
     routes(req, res).catch((e) => {
       if (!res.headersSent) json(res, 500, { error: String(e?.message ?? e) });

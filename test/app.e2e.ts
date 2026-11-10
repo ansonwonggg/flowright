@@ -52,12 +52,12 @@ describe('flowkit app on the example repo', { timeout: 240_000 }, () => {
 
   it('lists presets by field, described by the kit, and the saved flows', async () => {
     const presets = await get('/api/presets');
-    assert.deepEqual(presets.fields.user_spec.map((p: { label: string; summary: string }) => [p.label, p.summary]), [['company-ap', 'Company AP for PCCW']]);
+    assert.deepEqual(presets.fields.user_spec.map((p: { label: string; summary: string }) => [p.label, p.summary]), [['company-ap', 'Company AP for Acme']]);
     assert.deepEqual(presets.flows.map((f: { label: string }) => f.label), ['New ER user (kiosk)', 'New ER user (web)', 'New member']);
   });
 
   it('runs a function, keeps it in history with the record it made, then fills the next one from that record', async () => {
-    const started = await post('/api/run', { function: 'create-er-user', values: { user_spec: { company: 'PCCW', user_type: 'Company AP' } } });
+    const started = await post('/api/run', { function: 'create-er-user', values: { user_spec: { company: 'Acme', user_type: 'Company AP' } } });
     assert.equal(started.status, 202, JSON.stringify(started.body));
     const { run } = await waitFor(() => get(`/api/runs/${started.body.id}`), (d) => d?.run?.status === 'passed' || d?.run?.status === 'failed', 120_000);
     assert.equal(run.status, 'passed', output);

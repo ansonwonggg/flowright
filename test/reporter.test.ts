@@ -25,7 +25,7 @@ describe('resumeLine', () => {
   test('the command with the function and its record key, after unsetting the env', () =>
     expect(resumeLine(SETTINGS, FNS[1], 'DMD1')).toBe('env -u HTTPS_PROXY -u HTTP_PROXY npm run fn -- vet-datamod reference_no=DMD1'));
   test('a function on no record takes no key', () => expect(resumeLine(SETTINGS, fn('view-permissions'), 'X')).toBe('env -u HTTPS_PROXY -u HTTP_PROXY npm run fn -- view-permissions'));
-  test('nothing to unset: no env prefix', () => expect(resumeLine(DEFAULT_SETTINGS, FNS[1], 'DMD1')).toBe('npx flowkit run . vet-datamod reference_no=DMD1'));
+  test('nothing to unset: no env prefix', () => expect(resumeLine(DEFAULT_SETTINGS, FNS[1], 'DMD1')).toBe('npx flowright run . vet-datamod reference_no=DMD1'));
 });
 
 describe('recordLines', () => {

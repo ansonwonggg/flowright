@@ -16,7 +16,7 @@ export const presetPath = (folder: string, name: unknown, suffix = '.json'): { f
   const raw = typeof name === 'string' ? name.trim().replace(/(\.flow)?\.json$/i, '') : '';
   const segments = raw.split('/');
   if (!raw || segments.length > 2 || !segments.every((s) => PRESET_SEGMENT.test(s)))
-    return { error: 'Use lower-case letters, digits, . _ - and at most one folder, e.g. "other-user-pccw" or "cr089/g5".' };
+    return { error: 'Use lower-case letters, digits, . _ - and at most one folder, e.g. "other-user-acme" or "cr089/g5".' };
   return { file: `config/${folder}/${raw}${suffix}` };
 };
 

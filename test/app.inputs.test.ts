@@ -62,8 +62,8 @@ describe('summarize', () => {
     password: field.secret({ label: 'Password' }),
   };
   test('JSON inputs in words, in registry order, then every text and select value; never a secret', () =>
-    expect(summarize({ reference_no: 'DMD1', accounts: '{"G1":"DMD1","G2":"DMD2"}', user_spec: '{"company":"PCCW"}', account_type: 'PA', password: 'pw', plain: '{}' }, fields)).toBe(
-      'for PCCW · G1, G2 · DMD1 · PA',
+    expect(summarize({ reference_no: 'DMD1', accounts: '{"G1":"DMD1","G2":"DMD2"}', user_spec: '{"company":"Acme"}', account_type: 'PA', password: 'pw', plain: '{}' }, fields)).toBe(
+      'for Acme · G1, G2 · DMD1 · PA',
     ));
   test('only the names asked for, in that order', () => expect(summarize({ reference_no: 'DMD1', account_type: 'PA', password: 'pw' }, fields, ['account_type', 'password'])).toBe('PA · pw'));
   test('JSON that does not parse reaches describe as undefined', () => expect(summarize({ user_spec: '{bad' }, fields)).toBe('for ?'));

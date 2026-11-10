@@ -19,8 +19,8 @@ const options = {
   ],
   roles: ['Preparer', 'Approver', 'Select All'].map((v) => ({ value: v, label: v })),
   accountTypes: [{ value: 'PA', label: 'Personal Account (PA)' }],
-  'er-user': [{ value: 'DMD1', label: 'DMD1 Company AP @ PCCW' }],
-  company: [{ value: 'PCCW', label: 'PCCW' }],
+  'er-user': [{ value: 'DMD1', label: 'DMD1 Company AP @ Acme' }],
+  company: [{ value: 'Acme', label: 'Acme' }],
 };
 
 const Harness = ({ form, initial, project = 'create-user', spy }: { form: FormConfig; initial: FormValues; project?: string; spy?: (v: FormValues) => void }) => {
@@ -45,12 +45,12 @@ const Harness = ({ form, initial, project = 'create-user', spy }: { form: FormCo
 const spec = () => JSON.parse(screen.getByTestId('spec').textContent ?? '{}');
 
 describe('FormRenderer: user form', () => {
-  const base = { creator: 'ER', company: 'PCCW', userType: 'Company AP' };
+  const base = { creator: 'ER', company: 'Acme', userType: 'Company AP' };
 
   it('renders labelled fields with their values', () => {
     render(<Harness form={USER_FORM} initial={base} />);
     expect(screen.getByLabelText('Creator account')).toHaveValue('ER');
-    expect(screen.getByLabelText('Company')).toHaveValue('PCCW');
+    expect(screen.getByLabelText('Company')).toHaveValue('Acme');
     expect(screen.getByRole('radio', { name: 'Company AP' })).toBeChecked();
     expect(screen.getByText('Must match the company list exactly.')).toBeInTheDocument();
   });
@@ -106,7 +106,7 @@ describe('FormRenderer: user form', () => {
   it('offers suggestions on text fields', () => {
     const { container } = render(<Harness form={USER_FORM} initial={base} />);
     expect(screen.getByLabelText('Company')).toHaveAttribute('list', 's-company');
-    expect(container.querySelector('datalist#s-company option')).toHaveAttribute('value', 'PCCW');
+    expect(container.querySelector('datalist#s-company option')).toHaveAttribute('value', 'Acme');
   });
 });
 

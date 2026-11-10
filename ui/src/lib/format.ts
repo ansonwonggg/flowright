@@ -17,7 +17,7 @@ export const ago = (time: string | number, now = Date.now()): string => {
 /** A start time as a short local date and time, e.g. `Nov 5, 03:53 PM`. */
 export const when = (time: number): string => new Date(time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-/** A record's summary without its ref and stage, e.g. `Other User @ PCCW etoe.abc`. */
+/** A record's summary without its ref and stage, e.g. `Other User @ Acme etoe.abc`. */
 export const who = (summary: string, ref: string): string =>
   summary
     .replace(ref, '')

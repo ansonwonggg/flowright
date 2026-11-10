@@ -38,7 +38,7 @@ export const readManifest = (root: string): Manifest => {
  * loads them, and `FLOWKIT_ROOT` to `root`, so records land in the same place however Playwright is started.
  *
  * @throws when a function or step file breaks the pattern; the message lists every problem. Flow file
- *   problems don't stop Playwright; `flowkit check` reports them.
+ *   problems don't stop Playwright; `flowright check` reports them.
  */
 export const flowkitProjects = (root: string): Project[] => {
   const manifest = readManifest(root);
@@ -60,7 +60,7 @@ const loadedAsCommonJs = typeof require === 'function';
 
 const reporterPath = (root: string) => {
   const commonJs = resolveFrom(root, '@ansonwonggg/flowright/reporter');
-  return loadedAsCommonJs ? commonJs : commonJs.replace(/\.cts$/, '.ts');
+  return loadedAsCommonJs ? commonJs : commonJs.replace(/\.c([jt])s$/, '.$1s');
 };
 
 /**

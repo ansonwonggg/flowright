@@ -103,7 +103,7 @@ describe('flow run Steps', () => {
     status: 'failed',
     values: { reference_no: 'DMD1' },
     steps: [
-      { function: 'create-user', title: 'Create', status: 'passed', input: { company: 'PCCW' }, output: { reference_no: 'DMD1' }, runId: 'r1' },
+      { function: 'create-user', title: 'Create', status: 'passed', input: { company: 'Acme' }, output: { reference_no: 'DMD1' }, runId: 'r1' },
       { function: 'vet-datamod', title: 'Vet', status: 'failed', input: { reference_no: 'DMD1' }, error: 'A check failed: still SUBMIT', runId: 'r2' },
       { function: 'activate-api', title: 'Activate', status: 'waiting' },
     ],
@@ -160,7 +160,7 @@ describe('flow run Steps', () => {
   });
 
   it('a running step shows its live log, open, and neither input nor output', async () => {
-    show({ ...run, status: 'running', steps: [{ function: 'create-user', title: 'Create', status: 'running', input: { company: 'PCCW' }, runId: 'r3' }] });
+    show({ ...run, status: 'running', steps: [{ function: 'create-user', title: 'Create', status: 'running', input: { company: 'Acme' }, runId: 'r3' }] });
     const log = await screen.findByRole('region', { name: 'Step 1 log' });
     await waitFor(() => expect(log).toHaveTextContent('logging in filling the form'));
     expect(log.querySelector('details')).toHaveAttribute('open');
@@ -193,7 +193,7 @@ describe('flow run Steps', () => {
     expect(screen.queryByLabelText('Step 1 input')).toBeNull();
     await menu(1);
     await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Input' }));
-    expect(screen.getByLabelText('Step 1 input')).toHaveTextContent('companyPCCW');
+    expect(screen.getByLabelText('Step 1 input')).toHaveTextContent('companyAcme');
     await menu(1);
     expect(screen.getByRole('menuitemcheckbox', { name: '✓Input' })).toHaveAttribute('aria-checked', 'true');
     await userEvent.click(screen.getByRole('menuitemcheckbox', { name: '✓Input' }));

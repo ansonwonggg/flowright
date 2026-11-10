@@ -9,9 +9,9 @@ import { FUNCTIONS, record, run } from '../lib/fixtures.test-utils.ts';
 import { FunctionSection } from './RecordsPage.tsx';
 
 const fn = FUNCTIONS[0];
-const userRun = (over = {}) => run({ project: 'create-user', title: fn.title, input: { user_spec: '{"company":"PCCW"}', view_as: 'G1' }, summary: 'Company AP for PCCW, by ER', ...over });
+const userRun = (over = {}) => run({ project: 'create-user', title: fn.title, input: { user_spec: '{"company":"Acme"}', view_as: 'G1' }, summary: 'Company AP for Acme, by ER', ...over });
 const current = record({ stage: 'vet-datamod', stageLabel: 'Vet · SUCCEED', functions: [{ id: 'vet-datamod', title: '[Admin] Vet' }, { id: 'activate-api', title: '[API] Activate' }] });
-const made = { kind: 'er-user', ref: 'DMD1', stage: 'create-user', stageLabel: 'Create · SUBMITTED', summary: 'DMD1 Company AP @ PCCW' };
+const made = { kind: 'er-user', ref: 'DMD1', stage: 'create-user', stageLabel: 'Create · SUBMITTED', summary: 'DMD1 Company AP @ Acme' };
 
 const Harness = ({ group }: { group: FunctionGroup }) => {
   const [open, setOpen] = useState<string | null>(null);
@@ -35,7 +35,7 @@ describe('FunctionSection', () => {
     expect(screen.getByRole('button', { name: /Create ER User/ })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('✓ 1')).toBeInTheDocument();
     expect(screen.getByText('✗ 1')).toBeInTheDocument();
-    expect(screen.getByRole('row', { name: /DMD1 Company AP @ PCCW Vet · SUCCEED passed/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /DMD1 Company AP @ Acme Vet · SUCCEED passed/ })).toBeInTheDocument();
     expect(screen.getByText('Vet · SUCCEED')).toHaveClass('chip');
     expect(screen.getByRole('row', { name: /— nothing saved failed/ })).toBeInTheDocument();
   });
@@ -50,9 +50,9 @@ describe('FunctionSection', () => {
     stubLog(['Running create-user', '  ✓ 1 CREATE']);
     render(<Harness group={{ fn, passed: 1, failed: 0, rows: [{ key: 'a:DMD1', run: userRun(), made, current }] }} />);
     await userEvent.click(screen.getByRole('row', { name: /DMD1/ }));
-    expect(screen.getByText('Company AP for PCCW, by ER')).toBeInTheDocument();
+    expect(screen.getByText('Company AP for Acme, by ER')).toBeInTheDocument();
     expect(screen.getByText('view_as')).toBeInTheDocument();
-    expect(screen.getByText('{"company":"PCCW"}')).toBeInTheDocument();
+    expect(screen.getByText('{"company":"Acme"}')).toBeInTheDocument();
     expect(screen.getByText('etoe.abc')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Copy' })).toHaveLength(2);
     expect(screen.getByText(/After this run it was Create · SUBMITTED; it has moved on since/)).toBeInTheDocument();

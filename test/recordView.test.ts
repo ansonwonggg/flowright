@@ -58,8 +58,8 @@ describe('describeRecord', () => {
     member: { key: 'registration_no', label: 'member', summary: ['Member {member_id}', '{username}'] },
   };
   test('every summary part with its values', () =>
-    expect(describeRecord(rec({ values: { user_type: 'Company AP', company: 'PCCW', username: 'etoe.a' }, stageLabel: 'Activate · ACTIVATED' }), KINDS)).toBe(
-      'DMD1 Company AP @ PCCW etoe.a · Activate · ACTIVATED',
+    expect(describeRecord(rec({ values: { user_type: 'Company AP', company: 'Acme', username: 'etoe.a' }, stageLabel: 'Activate · ACTIVATED' }), KINDS)).toBe(
+      'DMD1 Company AP @ Acme etoe.a · Activate · ACTIVATED',
     ));
   test('a part missing any of its values is left out', () =>
     expect(describeRecord(rec({ kind: 'member', key: 'RGD1', values: { member_id: '2026' } }), KINDS)).toBe('RGD1 Member 2026 · new'));

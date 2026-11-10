@@ -190,7 +190,7 @@ export const newFunction = async (
   if (key && o.starts && !outputs.includes(key)) outputs.unshift(key);
   const file = path.join(root, area, `${id}.fn.ts`);
   write(file, functionSource({ id, title: o.title!.trim(), kit: importPath(file, path.join(root, KIT_FILE)), record: o.record, starts: o.starts, inputs: key && !o.starts ? { [key]: 'required', ...inputs } : inputs, outputs }));
-  return { file, next: [`build its steps (flowkit new step ${area}/<name>)`, `fill in run in ${path.relative(root, file)}`] };
+  return { file, next: [`build its steps (flowright new step ${area}/<name>)`, `fill in run in ${path.relative(root, file)}`] };
 };
 
 /**

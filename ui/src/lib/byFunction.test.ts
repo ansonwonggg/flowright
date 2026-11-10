@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { groupByFunction } from './byFunction.ts';
 import { FUNCTIONS, record, run } from './fixtures.test-utils.ts';
 
-const made = (ref: string, kind = 'er-user') => ({ kind, ref, stage: 'create-user', stageLabel: 'Create', summary: `${ref} Company AP @ PCCW` });
-const userRun = (id: string, project: string, over = {}) => run({ id, project, title: project, records: [], input: { user_spec: '{"company":"PCCW"}' }, summary: 'Company AP for PCCW', ...over });
+const made = (ref: string, kind = 'er-user') => ({ kind, ref, stage: 'create-user', stageLabel: 'Create', summary: `${ref} Company AP @ Acme` });
+const userRun = (id: string, project: string, over = {}) => run({ id, project, title: project, records: [], input: { user_spec: '{"company":"Acme"}' }, summary: 'Company AP for Acme', ...over });
 
 describe('groupByFunction', () => {
   it('one row per record a run made, joined to the record as it is now, in function order', () => {
@@ -50,7 +50,7 @@ describe('groupByFunction', () => {
   it('query matches title, summary, inputs, ref and the current details, ignoring case and spaces', () => {
     const runs = [userRun('a', 'create-user', { records: [made('DMD1')] })];
     const records = [record({ details: [['Username', 'etoe.found']] })];
-    for (const q of ['  PCCW ', 'dmd1', 'ETOE.FOUND', 'company ap', 'create-user']) expect(groupByFunction(FUNCTIONS, runs, records, 'all', q), q).toHaveLength(1);
+    for (const q of ['  Acme ', 'dmd1', 'ETOE.FOUND', 'company ap', 'create-user']) expect(groupByFunction(FUNCTIONS, runs, records, 'all', q), q).toHaveLength(1);
     expect(groupByFunction(FUNCTIONS, runs, records, 'all', 'nothing')).toEqual([]);
   });
 
