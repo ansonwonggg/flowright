@@ -190,6 +190,27 @@ describe('runFlow with a fake exec', () => {
     assert.equal(run.steps[1].error, 'boom');
   });
 
+  it('an IF runs only the arm it takes; step numbers are flat', async () => {
+    const branchy = { steps: [{ function: 'a' }, { function: 'b' }, { if: { value: 'status', equals: 'DDE' }, then: [{ function: 'c' }], else: [{ function: 'a' }] }] };
+    for (const [status, ran, statuses] of [
+      ['DDE', [['a', 1], ['b', 2], ['c', 4]], ['passed', 'passed', 'passed', 'passed', 'skipped']],
+      ['OPEN', [['a', 1], ['b', 2], ['a', 5]], ['passed', 'passed', 'passed', 'skipped', 'passed']],
+    ] as const) {
+      const root = mkdtempSync(path.join(tmpdir(), 'flowkit-'));
+      const calls: unknown[] = [];
+      const run = await runFlow(root, metas, branchy, {
+        exec: async (fn, _input, step) => {
+          calls.push([fn.id, step]);
+          const output: Values = fn.id === 'b' ? { status } : { ref: 'DMD1' };
+          return { status: 'passed', output };
+        },
+      });
+      assert.deepEqual(calls, ran);
+      assert.deepEqual(run.steps.map((s) => s.status), statuses);
+      assert.equal(run.status, 'passed');
+    }
+  });
+
   it('a flow without a title is named "flow"; a name option wins', async () => {
     const root = mkdtempSync(path.join(tmpdir(), 'flowkit-'));
     const exec = async () => ({ status: 'passed' as const });

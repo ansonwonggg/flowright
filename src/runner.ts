@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { FunctionMeta } from './fn.ts';
-import { newFlowRun, nextStepIndex, resolveInput, stepEnded, stepStarted, type FlowDef, type FlowRun } from './flow.ts';
+import { fnStepAt, newFlowRun, nextStepIndex, resolveInput, stepEnded, stepStarted, type FlowDef, type FlowRun } from './flow.ts';
 import { FLOW_RUNS_DIR, writeFlowRun } from './flowRuns.ts';
 import { newRunId } from './history.ts';
 import { INPUT_ENV, OUTPUT_ENV, parseValues, type Values } from './io.ts';
@@ -66,8 +66,9 @@ export const runFlow = async (
   let run = newFlowRun(fns, flow, { id, name: options.name ?? flow.title ?? 'flow', now: now() });
   save(run);
   for (let i = nextStepIndex(run); i >= 0; i = nextStepIndex(run)) {
-    const fn = fns.find((f) => f.id === run.steps[i].function)!;
-    const input = resolveInput(fn, run.steps[i], run.values);
+    const step = fnStepAt(run, i);
+    const fn = fns.find((f) => f.id === step.function)!;
+    const input = resolveInput(fn, step, run.values);
     run = stepStarted(run, i, input);
     save(run);
     run = stepEnded(run, await exec(fn, input, i + 1), now());

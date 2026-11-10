@@ -9,7 +9,7 @@ rather than remembered. Built to replace the hand-kept pattern in `my-flows`.
 |---|---|---|
 | **Step** | `<area>/steps/<name>.step.ts` | One action on one portal, e.g. "ID number + mobile, send OTP". Typed in, typed out. Can't run alone. |
 | **Function** | `<area>/<id>.fn.ts` | A runnable unit with named inputs and outputs, built from steps. One Playwright project each. |
-| **Flow** | `**/<name>.flow.json` | Functions one after another on one record. Outputs pass on to later inputs by name. |
+| **Flow** | `**/<name>.flow.json` | Functions one after another, with IF branches. Outputs pass on to later inputs by name. |
 
 Discovery goes by suffix alone: every `*.fn.ts` becomes a Playwright project, and every `*.flow.json`
 is a flow. There is no list to keep in step by hand.
@@ -122,6 +122,29 @@ Add `FLOWKIT_OUTPUT=<file>` to get its outputs as JSON.
 A step's input takes its typed value, else the latest earlier output with the same name, from any
 earlier step. In the flow above, activation gets `id_number` and `mobile` from step 1, past step 2.
 
+### IF
+
+A step can branch on a value an earlier step gave:
+
+```json
+{
+  "steps": [
+    { "function": "member-register" },
+    { "function": "member-enrol", "values": { "account_type": "SEP" } },
+    { "if": { "value": "status", "equals": "NEEDS_DDE" }, "then": [{ "function": "vet-enrolment" }], "else": [] }
+  ]
+}
+```
+
+- The condition reads the latest value of `value`: `equals` holds when it is that text, `notEquals` when
+  it isn't, and with neither it holds when the value is set. Text is trimmed, case-sensitive.
+- `then` runs when it holds, `else` (optional) otherwise; the other arm's steps are `skipped`. Arms hold
+  function steps only, not another IF.
+- Steps are numbered flat: the IF, then its then-arm, then its else-arm. Above, the IF is step 3 and the
+  vetting step 4.
+- An arm step gets values from before the IF and from earlier in its own arm. After the IF, a value
+  counts as given only when both arms give it.
+
 ## The Playwright config
 
 ```ts
@@ -178,16 +201,24 @@ Vite on the first start and after flowkit changes.
   inputs and `.env.local` before a run. flowkit doesn't judge which record a function should run on, or
   in what order functions should run: that is the tester's call.
 - **Records:** each record with a **Run:** link for every function that takes its kind, the key filled in.
-- **Flows:** a builder that offers every function and shows where each blank input will come from, and a page per flow run. Flow runs from the CLI appear here too (`out/flow-runs/`). The builder
+- **Flows:** a builder that offers every function and IF branches, and shows where each blank input will come from, and a page per flow run. Flow runs from the CLI appear here too (`out/flow-runs/`). The builder
   has two modes, remembered per browser: **Form** adds steps from a list at the end; **Flow chart** draws
   the flow from Start to End, with a palette grouped by kind of record. Drag a function onto any arrow, or
   a step to a new place. Each arrow shows the values handed down to the next step,
   and each step shows its own check errors. A leading `[tag]` in a function title (e.g. `[Web]`) becomes
   a coloured badge. A saved flow shows by its `title`; the builder keeps the title and the file name apart
   (the file name defaults to the title in lower case).
-- **Flow run page:** a running step shows its live log; a passed one its output; a failed or stopped one
-  its error and log. A finished step has a **Report ↗** button that opens its Playwright report in a new
-  tab, when one was kept. Each step's ⋯ menu shows its input, toggles its log, and opens its run in History.
+- **IF in the builder:** **+ Add an IF** (Form) or the IF chip (Flow chart) adds one; pick the value from
+  what earlier steps give, the test (is / is not / is set) and the text, then add functions to the true and
+  false branches.
+- **Flow run page:** **Canvas** (default) draws the run left to right, n8n style: a node turns green with a
+  ✓ when it passes, the wire into the running node marches, wires light up as values pass through them
+  (labelled with how many), and an IF forks into `true` / `false` lanes with the lane not taken dashed and
+  its steps skipped. Click a node for its details below the canvas; they follow the running step until
+  you do. **List** shows every step at once. Either way: a running step shows its live log; a passed one
+  its output; a failed or stopped one its error and log; an IF what it tested and which branch it took. A
+  finished step has a **Report ↗** button that opens its Playwright report in a new tab, when one was
+  kept. Each step's ⋯ menu shows its input, toggles its log, and opens its run in History.
 - Confirmations and errors open in the page, never as browser pop-ups.
 - **Run, History, Records:** a live timeline with Stop, the failure explained, the records made and
   their logins, the Playwright report and the log.
@@ -226,7 +257,9 @@ imports break. `flowkitReporters` picks the right entry.
 - A `*.step.ts` exports only `defineStep` results. A helper belongs in another file.
 - A `*.flow.json` is valid: known functions, every
   required input typed, given by an earlier step or available from the record, typed values matching
-  their rules (a JSON value through its validator), no secrets. Flows are strictly linear.
+  their rules (a JSON value through its validator), no secrets. An IF tests a value an earlier step
+  gives, takes at most one of `equals` / `notEquals`, has a step in at least one arm, and sits at the top
+  level.
 
 ## The example
 

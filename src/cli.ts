@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { masked } from './contract.ts';
 import { loadRepo, manifestOf, type Repo } from './discover.ts';
-import { flowProblems, type FlowDef, type FlowRun } from './flow.ts';
+import { flowProblems, flowSummary, type FlowDef, type FlowRun } from './flow.ts';
 import { fromRoot, metaOf, ROOT_ENV } from './fn.ts';
 import { newFlow, newFunction, newStep, type Generated } from './generate.ts';
 import { listRecords, RECORDS_DIR } from './records.ts';
@@ -41,23 +41,28 @@ const list = (repo: Repo) => {
   console.log('Steps');
   for (const s of repo.steps) console.log(`  ${s.file}: ${s.names.join(', ')}`);
   console.log('Flows');
-  for (const f of repo.flows) console.log(`  ${f.file}: ${f.flow?.steps.map((s) => s.function).join(' → ') ?? '(not JSON)'}`);
+  const metas = repo.functions.map((f) => ({ id: f.def.id, title: f.def.id }));
+  for (const f of repo.flows) console.log(`  ${f.file}: ${f.flow ? flowSummary(metas, f.flow) : '(not JSON)'}`);
   if (repo.problems.length) {
     console.log('Problems');
     printProblems(repo);
   }
 };
 
-const ICON: Record<string, string> = { waiting: '·', running: '▶', passed: '✓', failed: '✗', stopped: '■' };
+const ICON: Record<string, string> = { waiting: '·', running: '▶', passed: '✓', failed: '✗', stopped: '■', skipped: '↷' };
+
+const printed = new Map<number, string>();
 
 const printRun = (repo: Repo, run: FlowRun) => {
-  const changed = run.steps.find((s) => s.status === 'running') ?? [...run.steps].reverse().find((s) => s.status !== 'waiting');
-  if (!changed) return;
-  const n = run.steps.indexOf(changed) + 1;
-  console.log(`\n${ICON[changed.status]} flow step ${n}/${run.steps.length}: ${changed.title} — ${changed.status}`);
-  if (changed.status === 'running') console.log(`  in:  ${JSON.stringify(masked(repo.fields, changed.input ?? {}))}`);
-  if (changed.output) console.log(`  out: ${JSON.stringify(masked(repo.fields, changed.output))}`);
-  if (changed.error) console.log(`  ${changed.error}`);
+  run.steps.forEach((step, i) => {
+    if (step.status === 'waiting' || printed.get(i) === step.status) return;
+    printed.set(i, step.status);
+    const arm = step.taken ? ` → ${step.taken}` : '';
+    console.log(`\n${ICON[step.status]} flow step ${i + 1}/${run.steps.length}: ${step.title} — ${step.status}${arm}`);
+    if (step.status === 'running') console.log(`  in:  ${JSON.stringify(masked(repo.fields, step.input ?? {}))}`);
+    if (step.output) console.log(`  out: ${JSON.stringify(masked(repo.fields, step.output))}`);
+    if (step.error) console.log(`  ${step.error}`);
+  });
 };
 
 const pairs = (args: string[]) =>

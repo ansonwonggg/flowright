@@ -85,6 +85,10 @@ describe('presetsFor / cardNote', () => {
     const odd = { ...PRESETS, flows: [{ file: 'x', spec: undefined }, { file: 'y', spec: { steps: 'no' } }, { file: 'z', spec: { steps: [null, { function: 'vet-datamod' }] } }] } as unknown as Presets;
     expect(cardNote(fnOf('vet-datamod'), META, odd)).toBe('Used in 1 flow');
   });
+  it("cardNote: a function in an IF's branch counts as used", () => {
+    const flows = [{ file: 'a', spec: { steps: [{ function: 'create-user' }, { if: { value: 'status' }, then: [], else: [{ function: 'activate-api' }] }] } }];
+    expect(cardNote(fnOf('activate-api'), META, { ...PRESETS, flows } as unknown as Presets)).toBe('Used in 1 flow');
+  });
 });
 
 describe('bits', () => {

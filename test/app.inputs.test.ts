@@ -85,4 +85,19 @@ describe('cleanFlow', () => {
   for (const body of [undefined, null, 'x', {}, { steps: 'x' }]) test(`no steps: ${JSON.stringify(body)}`, () => expect(cleanFlow(body)).toEqual({ steps: [] }));
   test('junk steps become blank ones, for flowProblems to name', () =>
     expect(cleanFlow({ title: '  ', steps: [null, { function: 5, values: [1] }] })).toEqual({ steps: [{ function: '' }, { function: '' }] }));
+  test('an IF keeps its condition trimmed and its arms cleaned; an empty else is left out', () =>
+    expect(
+      cleanFlow({ steps: [{ if: { value: ' status ', equals: ' NEEDS_DDE ', junk: 1 }, then: [{ function: 'vet', values: { a: ' 1 ' } }, null], else: [], x: 1 }] }),
+    ).toEqual({ steps: [{ if: { value: 'status', equals: 'NEEDS_DDE' }, then: [{ function: 'vet', values: { a: '1' } }, { function: '' }] }] }));
+  test('an IF keeps notEquals, an empty equals (is empty), both when both are sent, and neither (is set)', () => {
+    expect(cleanFlow({ steps: [{ if: { value: 's', notEquals: 'X' }, then: [], else: [{ function: 'b' }] }] })).toEqual({ steps: [{ if: { value: 's', notEquals: 'X' }, then: [], else: [{ function: 'b' }] }] });
+    expect(cleanFlow({ steps: [{ if: { value: 's', equals: '' }, then: [] }] })).toEqual({ steps: [{ if: { value: 's', equals: '' }, then: [] }] });
+    expect(cleanFlow({ steps: [{ if: { value: 's', equals: 'A', notEquals: 'B' }, then: [] }] })).toEqual({ steps: [{ if: { value: 's', equals: 'A', notEquals: 'B' }, then: [] }] });
+    expect(cleanFlow({ steps: [{ if: { value: 's', equals: 3 }, then: 'x' }] })).toEqual({ steps: [{ if: { value: 's' }, then: [] }] });
+  });
+  test('a junk condition becomes a blank value, for flowProblems to name', () => expect(cleanFlow({ steps: [{ if: null, then: [] }] })).toEqual({ steps: [{ if: { value: '' }, then: [] }] }));
+  test('an IF inside an arm is kept as an IF, for flowProblems to name', () =>
+    expect(cleanFlow({ steps: [{ if: { value: 's' }, then: [{ if: { value: 't' }, then: [{ function: 'a' }] }] }] })).toEqual({
+      steps: [{ if: { value: 's' }, then: [{ if: { value: 't' }, then: [{ function: 'a' }] }] }],
+    }));
 });

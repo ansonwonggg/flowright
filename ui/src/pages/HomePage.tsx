@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { functionsIn } from '../../../src/flow.ts';
 import type { Fn, HistoryItem, Meta, Presets } from '../api.ts';
 import { StatusPill } from '../components/bits.tsx';
 import { FnTitle } from '../components/FnTitle.tsx';
@@ -11,10 +12,7 @@ import { FlowCards } from './FlowsPage.tsx';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-const usesFunction = (spec: unknown, id: string) => {
-  const steps = (spec as { steps?: unknown } | undefined)?.steps;
-  return Array.isArray(steps) && steps.some((step) => (step as { function?: unknown } | null)?.function === id);
-};
+const usesFunction = (spec: unknown, id: string) => functionsIn(spec).includes(id);
 
 /**
  * What a function card says: for a function with a JSON input, how many presets it can start from;

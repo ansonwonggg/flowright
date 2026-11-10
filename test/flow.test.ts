@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { field } from '../src/fields.ts';
 import {
+  conditionHolds,
+  conditionText,
+  flatten,
   flowProblems,
+  flowSummary,
+  functionsIn,
   newFlowRun,
   nextStepIndex,
   producedBefore,
@@ -10,6 +15,7 @@ import {
   secretProblems,
   stepEnded,
   stepStarted,
+  type Condition,
   type FlowDef,
 } from '../src/flow.ts';
 import type { FunctionMeta } from '../src/fn.ts';
@@ -140,5 +146,158 @@ describe('flow run', () => {
   it('ending with nothing running changes nothing', () => {
     const run = fresh();
     assert.equal(stepEnded(run, { status: 'passed' }, 2), run);
+  });
+});
+
+describe('IF steps', () => {
+  const BR = [
+    meta({ id: 'enrol', record: 'member', starts: true, outputs: ['reg', 'status', 'enr'] }),
+    meta({ id: 'vet', record: 'member', inputs: { enr: 'required' }, outputs: ['status', 'acct'] }),
+    meta({ id: 'note', inputs: { status: 'required' }, outputs: ['acct', 'memo'] }),
+    meta({ id: 'after', inputs: { acct: 'required' } }),
+    meta({ id: 'needsMemo', inputs: { memo: 'required' } }),
+  ];
+  const IF = { value: 'status', equals: 'NEEDS_DDE' };
+  const FLOW: FlowDef = { steps: [{ function: 'enrol' }, { if: IF, then: [{ function: 'vet' }], else: [{ function: 'note' }] }, { function: 'after' }] };
+
+  describe('flatten', () => {
+    it('an IF, then its then-arm, then its else-arm, each arm step tagged with the IF\'s index', () =>
+      assert.deepEqual(flatten(FLOW), [
+        { function: 'enrol' },
+        { if: IF },
+        { function: 'vet', branch: { at: 1, arm: 'then' } },
+        { function: 'note', branch: { at: 1, arm: 'else' } },
+        { function: 'after' },
+      ]));
+    it('a missing else and junk arms add nothing', () => {
+      assert.deepEqual(flatten({ steps: [{ if: IF, then: [{ function: 'vet' }] }] }), [{ if: IF }, { function: 'vet', branch: { at: 0, arm: 'then' } }]);
+      assert.deepEqual(flatten({ steps: [{ if: IF, then: 'x', else: null }] }), [{ if: IF }]);
+    });
+    for (const bad of [undefined, null, {}, { steps: 'x' }]) it(`no steps: ${JSON.stringify(bad)}`, () => assert.deepEqual(flatten(bad), []));
+    it('a linear flow stays as it is', () => assert.deepEqual(flatten(WEB), WEB.steps));
+  });
+
+  describe('conditionHolds and conditionText', () => {
+    const cases: [Condition, Record<string, string>, boolean, string][] = [
+      [{ value: 'status', equals: 'NEEDS_DDE' }, { status: 'NEEDS_DDE' }, true, 'status is NEEDS_DDE'],
+      [{ value: 'status', equals: 'NEEDS_DDE' }, { status: 'ACCOUNT_OPENED' }, false, 'status is NEEDS_DDE'],
+      [{ value: 'status', equals: 'NEEDS_DDE' }, {}, false, 'status is NEEDS_DDE'],
+      [{ value: 'status', equals: ' NEEDS_DDE ' }, { status: 'NEEDS_DDE' }, true, 'status is NEEDS_DDE'],
+      [{ value: 'status', equals: 'needs_dde' }, { status: 'NEEDS_DDE' }, false, 'status is needs_dde'],
+      [{ value: 'status', equals: '' }, {}, true, 'status is empty'],
+      [{ value: 'status', notEquals: 'ACCOUNT_OPENED' }, { status: 'PENDING' }, true, 'status is not ACCOUNT_OPENED'],
+      [{ value: 'status', notEquals: 'ACCOUNT_OPENED' }, { status: 'ACCOUNT_OPENED' }, false, 'status is not ACCOUNT_OPENED'],
+      [{ value: 'status', notEquals: 'X' }, {}, true, 'status is not X'],
+      [{ value: 'status' }, { status: 'A' }, true, 'status is set'],
+      [{ value: 'status' }, {}, false, 'status is set'],
+    ];
+    for (const [cond, values, holds, text] of cases)
+      it(`${JSON.stringify(cond)} on ${JSON.stringify(values)}`, () => {
+        assert.equal(conditionHolds(cond, values), holds);
+        assert.equal(conditionText(cond), text);
+      });
+  });
+
+  describe('flowProblems', () => {
+    it('a good IF flow', () => assert.deepEqual(flowProblems(BR, FIELDS, FLOW), []));
+    it('the IF needs its value from an earlier step', () =>
+      assert.deepEqual(flowProblems(BR, FIELDS, { steps: [{ if: IF, then: [{ function: 'enrol' }] }] }), ['Step 1: the IF needs Status from an earlier step']));
+    it('a value given in only one arm of an earlier IF is not certain', () =>
+      assert.deepEqual(
+        flowProblems(BR, FIELDS, { steps: [{ function: 'enrol' }, { if: IF, then: [{ function: 'note' }] }, { if: { value: 'memo' }, then: [{ function: 'vet' }] }] }),
+        ['Step 4: the IF needs memo from an earlier step'],
+      ));
+    it('no value to test, both equals and notEquals, and no steps in either arm', () =>
+      assert.deepEqual(flowProblems(BR, FIELDS, { steps: [{ function: 'enrol' }, { if: { value: ' ' }, then: [] }, { if: { value: 'status', equals: 'A', notEquals: 'B' }, then: [{ function: 'vet' }] }] }), [
+        'Step 2: the IF needs a value to test',
+        'Step 2: the IF has no steps in either branch',
+        'Step 3: the IF takes equals or notEquals, not both',
+      ]));
+    it('an IF inside an arm', () =>
+      assert.deepEqual(flowProblems(BR, FIELDS, { steps: [{ function: 'enrol' }, { if: IF, then: [{ if: IF, then: [{ function: 'vet' }] } as never] }] }), ["Step 3: an IF can't hold another IF"]));
+    it('an arm step gets values from before the IF and from earlier in its own arm', () => {
+      assert.deepEqual(flowProblems(BR, FIELDS, { steps: [{ function: 'enrol' }, { if: IF, then: [{ function: 'note' }, { function: 'needsMemo' }] }] }), []);
+    });
+    it('an else-arm step does not get what the then-arm gives', () =>
+      assert.deepEqual(flowProblems(BR, FIELDS, { steps: [{ function: 'enrol' }, { if: IF, then: [{ function: 'note' }], else: [{ function: 'needsMemo' }] }] }), [
+        'Step 4: needsMemo needs memo',
+      ]));
+    it('after the IF, a value counts only when both arms give it', () => {
+      assert.deepEqual(flowProblems(BR, FIELDS, FLOW), []);
+      assert.deepEqual(flowProblems(BR, FIELDS, { steps: [{ function: 'enrol' }, { if: IF, then: [{ function: 'vet' }] }, { function: 'after' }] }), ['Step 4: after needs acct']);
+      assert.deepEqual(flowProblems(BR, FIELDS, { steps: [{ function: 'enrol' }, { if: IF, then: [{ function: 'vet' }], else: [{ function: 'note' }] }, { function: 'needsMemo' }] }), [
+        'Step 5: needsMemo needs memo',
+      ]);
+    });
+    it('a secret typed in an arm is caught', () =>
+      assert.deepEqual(secretProblems(FIELDS, { steps: [{ if: IF, then: [{ function: 'activate', values: { password: 'p' } }] }] }), ["Step 2: don't save Password in a flow file; leave it blank"]));
+  });
+
+  describe('producedBefore', () => {
+    it('numbers steps as laid out flat; after an IF, from the then-arm when both arms give it', () => {
+      const flat = flatten(FLOW);
+      assert.deepEqual([...producedBefore(BR, flat, 4)], [['reg', 1], ['status', 1], ['enr', 1], ['acct', 3]]);
+      assert.deepEqual([...producedBefore(BR, flat, 3)], [['reg', 1], ['status', 1], ['enr', 1]]);
+    });
+  });
+
+  describe('run', () => {
+    const fresh = (flow = FLOW) => newFlowRun(BR, flow, { id: 'r', name: 'n', now: 1 });
+    const statuses = (run: ReturnType<typeof fresh>) => run.steps.map((s) => s.status);
+    it('the IF is titled by its condition, and waits with the rest', () => {
+      const run = fresh();
+      assert.deepEqual(run.steps.map((s) => s.title), ['enrol', 'If status is NEEDS_DDE', 'vet', 'note', 'after']);
+      assert.deepEqual(statuses(run), ['waiting', 'waiting', 'waiting', 'waiting', 'waiting']);
+    });
+    it('condition holds: the IF passes taking then, the else-arm is skipped, then-arm runs next', () => {
+      let run = stepEnded(stepStarted(fresh(), 0, {}), { status: 'passed', output: { status: 'NEEDS_DDE', enr: 'E1' } }, 2);
+      assert.deepEqual(statuses(run), ['passed', 'passed', 'waiting', 'skipped', 'waiting']);
+      assert.equal(run.steps[1].taken, 'then');
+      assert.deepEqual(run.steps[1].input, { status: 'NEEDS_DDE' });
+      assert.equal(nextStepIndex(run), 2);
+      run = stepEnded(stepStarted(run, 2, {}), { status: 'passed', output: { acct: '1' } }, 3);
+      assert.equal(nextStepIndex(run), 4);
+      run = stepEnded(stepStarted(run, 4, {}), { status: 'passed' }, 4);
+      assert.deepEqual({ status: run.status, endedAt: run.endedAt }, { status: 'passed', endedAt: 4 });
+    });
+    it('condition fails: the then-arm is skipped and the else-arm runs', () => {
+      const run = stepEnded(stepStarted(fresh(), 0, {}), { status: 'passed', output: { status: 'ACCOUNT_OPENED' } }, 2);
+      assert.deepEqual(statuses(run), ['passed', 'passed', 'skipped', 'waiting', 'waiting']);
+      assert.equal(run.steps[1].taken, 'else');
+      assert.equal(nextStepIndex(run), 3);
+    });
+    it('an IF last in the flow with an empty arm taken: the run passes at once', () => {
+      const run = stepEnded(stepStarted(fresh({ steps: [{ function: 'enrol' }, { if: IF, then: [{ function: 'vet' }] }] }), 0, {}), { status: 'passed', output: { reg: 'R' } }, 2);
+      assert.deepEqual(run.steps[1].input, { status: '' });
+      assert.deepEqual(statuses(run), ['passed', 'passed', 'skipped']);
+      assert.deepEqual({ status: run.status, endedAt: run.endedAt }, { status: 'passed', endedAt: 2 });
+    });
+    it('the IF reads the latest value of its name', () => {
+      let run = fresh({ steps: [{ function: 'enrol' }, { function: 'note' }, { if: IF, then: [{ function: 'vet' }] }] });
+      run = stepEnded(stepStarted(run, 0, {}), { status: 'passed', output: { status: 'NEEDS_DDE' } }, 2);
+      run = stepEnded(stepStarted(run, 1, {}), { status: 'passed', output: { status: 'DONE' } }, 3);
+      assert.equal(run.steps[2].taken, 'else');
+    });
+    it('a failure before the IF leaves it waiting', () => {
+      const run = stepEnded(stepStarted(fresh(), 0, {}), { status: 'failed' }, 2);
+      assert.deepEqual(statuses(run), ['failed', 'waiting', 'waiting', 'waiting', 'waiting']);
+    });
+  });
+
+  describe('flowSummary and functionsIn', () => {
+    it('one line, arms after the IF; titles by id when unknown', () =>
+      assert.equal(flowSummary([{ id: 'enrol', title: 'Enrol' }], FLOW), 'Enrol → If status is NEEDS_DDE: vet | else: note → after'));
+    it('no else: left out; an empty then reads —', () => {
+      assert.equal(flowSummary([], { steps: [{ function: 'a' }, { if: IF, then: [{ function: 'b' }, { function: 'c' }] }] }), 'a → If status is NEEDS_DDE: b → c');
+      assert.equal(flowSummary([], { steps: [{ if: IF, then: [], else: [{ function: 'b' }] }] }), 'If status is NEEDS_DDE: — | else: b');
+    });
+    it('a linear flow and no flow', () => {
+      assert.equal(flowSummary([], WEB), 'create → vet → activate');
+      assert.equal(flowSummary([], null), '');
+    });
+    it('functionsIn lists arm functions too', () => {
+      assert.deepEqual(functionsIn(FLOW), ['enrol', 'vet', 'note', 'after']);
+      assert.deepEqual(functionsIn(undefined), []);
+    });
   });
 });

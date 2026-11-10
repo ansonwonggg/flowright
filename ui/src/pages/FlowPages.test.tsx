@@ -8,8 +8,8 @@ import type { FlowRun } from '../api.ts';
 import { FUNCTIONS, META } from '../lib/fixtures.test-utils.ts';
 import { flowOf, type DraftStep } from '../lib/flowDraft.ts';
 import { StepCard } from './StepCard.tsx';
-import { pillOf, Steps } from './FlowRunPage.tsx';
-import { FlowCards } from './FlowsPage.tsx';
+import { pillOf, RunCanvas, Steps } from './FlowRunPage.tsx';
+import { FlowCards, passedSteps } from './FlowsPage.tsx';
 
 const Harness = ({ steps, index = 0, spy = () => {}, onRemove = () => {} }: { steps: DraftStep[]; index?: number; spy?: (s: DraftStep) => void; onRemove?: () => void }) => {
   const [all, setAll] = useState(steps);
@@ -237,7 +237,138 @@ describe('flow run Steps', () => {
   });
 });
 
+describe('flow run with an IF', () => {
+  const branchRun = (over: Partial<FlowRun> = {}): FlowRun => ({
+    id: 'b',
+    name: 'New member, SEP',
+    startedAt: 0,
+    status: 'running',
+    values: { status: 'NEEDS_DDE' },
+    steps: [
+      { function: 'member-enrol', title: '[Web] Member Enrolment', status: 'passed', output: { status: 'NEEDS_DDE', enrolment_no: 'END1' }, runId: 'r1' },
+      { if: { value: 'status', equals: 'NEEDS_DDE' }, title: 'If status is NEEDS_DDE', status: 'passed', taken: 'then', input: { status: 'NEEDS_DDE' } },
+      { function: 'vet-enrolment', title: '[Admin] Vet Enrolment', status: 'running', input: { enrolment_no: 'END1' }, runId: 'r3', branch: { at: 1, arm: 'then' } },
+      { function: 'note', title: 'Note', status: 'skipped', branch: { at: 1, arm: 'else' } },
+    ],
+    ...over,
+  });
+  const mount = (ui: React.ReactNode) => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ run: { hasReport: false }, log: ['vetting'] }), { status: 200, headers: { 'content-type': 'application/json' } })));
+    return render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </QueryClientProvider>,
+    );
+  };
+  afterEach(() => vi.unstubAllGlobals());
+
+  describe('RunCanvas', () => {
+    const nodeOf = (n: number) => screen.getByRole('button', { name: new RegExp(`^Step ${n}:`) });
+
+    it('draws a node per step, each saying its status; the IF says which way it went', () => {
+      mount(<RunCanvas run={branchRun()} />);
+      const canvas = screen.getByRole('group', { name: 'Flow canvas' });
+      expect(within(canvas).getAllByRole('button')).toHaveLength(4);
+      expect(nodeOf(1)).toHaveAccessibleName('Step 1: [Web] Member Enrolment, 2 values out');
+      expect(nodeOf(2)).toHaveAccessibleName('Step 2: If status is NEEDS_DDE, took true');
+      expect(nodeOf(3)).toHaveClass('st-running');
+      expect(nodeOf(4)).toHaveClass('st-skipped');
+    });
+
+    it('arm steps sit in their branch; the branch not taken is dead', () => {
+      mount(<RunCanvas run={branchRun()} />);
+      expect(within(screen.getByLabelText('true branch')).getByRole('button', { name: /^Step 3:/ })).toBeInTheDocument();
+      expect(within(screen.getByLabelText('false branch')).getByRole('button', { name: /^Step 4:/ })).toBeInTheDocument();
+      expect(screen.getByLabelText('true branch')).toHaveClass('lit');
+      expect(screen.getByLabelText('false branch')).toHaveClass('dead');
+    });
+
+    it('shows the running step by default, with its live log', async () => {
+      mount(<RunCanvas run={branchRun()} />);
+      expect(nodeOf(3)).toHaveAttribute('aria-pressed', 'true');
+      const detail = screen.getByRole('region', { name: 'Step 3 details' });
+      expect(detail).toHaveTextContent('[Admin] Vet Enrolment');
+      expect(await within(detail).findByRole('region', { name: 'Step 3 log' })).toBeInTheDocument();
+    });
+
+    it('clicking a node shows its details: output for a function step', async () => {
+      mount(<RunCanvas run={branchRun()} />);
+      await userEvent.click(nodeOf(1));
+      expect(nodeOf(1)).toHaveAttribute('aria-pressed', 'true');
+      expect(within(screen.getByRole('region', { name: 'Step 1 details' })).getByLabelText('Step 1 output')).toHaveTextContent('END1');
+    });
+
+    it('the IF shows what it tested and the branch it took', async () => {
+      mount(<RunCanvas run={branchRun()} />);
+      await userEvent.click(nodeOf(2));
+      const detail = screen.getByRole('region', { name: 'Step 2 details' });
+      expect(detail).toHaveTextContent('Tests status is NEEDS_DDE. True runs 1 step, false runs 1.');
+      expect(within(detail).getByTestId('if-result')).toHaveTextContent('status was NEEDS_DDE, so the flow took the true branch.');
+      expect(within(detail).queryByRole('button', { name: 'Step 2 options' })).toBeNull();
+    });
+
+    it('an IF that tested a value no step gave says it was empty', async () => {
+      const run = branchRun({ status: 'passed' });
+      run.steps[1] = { ...run.steps[1], taken: 'else', input: { status: '' } };
+      mount(<RunCanvas run={run} />);
+      await userEvent.click(nodeOf(2));
+      expect(screen.getByTestId('if-result')).toHaveTextContent('status was empty, so the flow took the false branch.');
+    });
+
+    it('a skipped step says why', async () => {
+      mount(<RunCanvas run={branchRun()} />);
+      await userEvent.click(nodeOf(4));
+      expect(screen.getByRole('region', { name: 'Step 4 details' })).toHaveTextContent('Skipped: step 2 (If status is NEEDS_DDE) took the true branch.');
+    });
+
+    it('with nothing running, it shows the failed step', () => {
+      const run = branchRun({ status: 'failed' });
+      run.steps[2] = { ...run.steps[2], status: 'failed', error: 'DDE timed out' };
+      mount(<RunCanvas run={run} />);
+      expect(screen.getByRole('region', { name: 'Step 3 details' })).toHaveTextContent('DDE timed out');
+    });
+
+    it('a linear run draws its steps in a row with no branches', () => {
+      mount(<RunCanvas run={{ ...branchRun(), steps: [branchRun().steps[0], { ...branchRun().steps[2], branch: undefined }] }} />);
+      expect(screen.queryByLabelText('true branch')).toBeNull();
+      expect(within(screen.getByRole('group', { name: 'Flow canvas' })).getAllByRole('button')).toHaveLength(2);
+    });
+  });
+
+  describe('Steps list', () => {
+    it('the IF and skipped steps get their own marks and words', () => {
+      mount(<Steps run={branchRun()} />);
+      expect(screen.getByTestId('step-2-status')).toHaveTextContent('passed');
+      expect(screen.getByTestId('step-4-status')).toHaveTextContent('skipped');
+      expect(screen.getByRole('listitem', { name: 'Step 3' })).toHaveClass('st-arm');
+      expect(screen.getByRole('listitem', { name: 'Step 4' })).toHaveTextContent('took the true branch');
+      expect(screen.queryByRole('button', { name: 'Step 4 options' })).toBeNull();
+    });
+  });
+});
+
+describe('passedSteps', () => {
+  const run = (steps: FlowRun['steps']): FlowRun => ({ id: 'x', name: 'x', startedAt: 0, status: 'passed', values: {}, steps });
+  it('counts function steps, leaving out IFs and skipped steps', () =>
+    expect(
+      passedSteps(
+        run([
+          { function: 'a', title: 'a', status: 'passed' },
+          { if: { value: 's' }, title: 'If s is set', status: 'passed', taken: 'then' },
+          { function: 'b', title: 'b', status: 'passed', branch: { at: 1, arm: 'then' } },
+          { function: 'c', title: 'c', status: 'skipped', branch: { at: 1, arm: 'else' } },
+          { function: 'd', title: 'd', status: 'waiting' },
+        ]),
+      ),
+    ).toBe('2/3'));
+  it('a linear run and an empty one', () => {
+    expect(passedSteps(run([{ function: 'a', title: 'a', status: 'passed' }, { function: 'b', title: 'b', status: 'failed' }]))).toBe('1/2');
+    expect(passedSteps(run([]))).toBe('0/0');
+  });
+});
+
 describe('pillOf', () => {
+  it('a skipped step has no colour of its own', () => expect(pillOf('skipped')).toBe(''));
   it('maps flow words onto run colours', () => {
     expect(pillOf('stopped')).toBe('interrupted');
     expect(pillOf('waiting')).toBe('');

@@ -3,19 +3,19 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import { fn, META } from '../lib/fixtures.test-utils.ts';
-import { flowOf, type DraftStep } from '../lib/flowDraft.ts';
+import { flowOf, isDraftIf, type DraftItem, type DraftStep } from '../lib/flowDraft.ts';
 import { DragSteps } from './DragSteps.tsx';
 
 const step = (fn: string): DraftStep => ({ key: fn, fn, values: {}, forms: {} });
 
-let latest: DraftStep[] = [];
-const Harness = ({ steps, errors = [] }: { steps: DraftStep[]; errors?: string[] }) => {
+let latest: DraftItem[] = [];
+const Harness = ({ steps, errors = [] }: { steps: DraftItem[]; errors?: string[] }) => {
   const [all, setAll] = useState(steps);
   latest = all;
   return <DragSteps steps={all} flow={flowOf(all, META.fields)} meta={META} errors={errors} onSteps={setAll} />;
 };
 
-const order = () => latest.map((s) => s.fn);
+const order = () => latest.map((s) => (isDraftIf(s) ? 'IF' : s.fn));
 const chip = (title: string) => screen.getByRole('button', { name: `Add ${title}` }).closest('.fn-chip') as HTMLElement;
 const tile = (n: number) => screen.getByLabelText(`Step ${n} tile`);
 const gap = (n: number) => screen.getByTestId(`gap-${n}`);
@@ -125,7 +125,7 @@ describe('DragSteps', () => {
     expect(screen.queryByRole('region', { name: 'Step 1' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Inputs' }));
     await userEvent.type(within(screen.getByRole('region', { name: 'Step 1' })).getByLabelText(/DataMod ref/), 'D');
-    expect(latest[0].values).toEqual({ reference_no: 'D' });
+    expect((latest[0] as DraftStep).values).toEqual({ reference_no: 'D' });
     await userEvent.click(screen.getByRole('button', { name: 'Hide' }));
     expect(screen.queryByRole('region', { name: 'Step 1' })).toBeNull();
   });
@@ -184,10 +184,66 @@ describe('DragSteps', () => {
     expect(within(tile(1)).queryByRole('list')).toBeNull();
   });
 
-  it('the palette is grouped by kind of record, the kit labels first, then Other', () => {
+  it('the palette starts with the IF under Logic, then functions by kind of record, the kit labels first, then Other', () => {
     render(<Harness steps={[]} />);
     const heads = [...document.querySelectorAll('.palette-head')].map((h) => h.textContent);
-    expect(heads).toEqual(['ER user', 'member', 'Other']);
+    expect(heads).toEqual(['Logic', 'ER user', 'member', 'Other']);
+  });
+
+  describe('IF', () => {
+    const ifItem = (then: DraftStep[] = [], otherwise: DraftStep[] = []): DraftItem => ({ key: 'if', kind: 'if', cond: { value: 'status', op: 'equals', to: 'NEEDS_DDE' }, then, else: otherwise });
+
+    it('+ on the IF chip adds one at the end; dragging it onto an arrow puts it there', () => {
+      render(<Harness steps={[step('create-user'), step('vet-datamod')]} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Add an IF' }));
+      expect(order()).toEqual(['create-user', 'vet-datamod', 'IF']);
+      const chipEl = document.querySelector('.if-chip') as HTMLElement;
+      fireEvent.dragStart(chipEl);
+      fireEvent.dragOver(screen.getByTestId('gap-1'));
+      fireEvent.drop(screen.getByTestId('gap-1'));
+      expect(order()).toEqual(['create-user', 'IF', 'vet-datamod', 'IF']);
+    });
+
+    it('steps are numbered flat: the IF, its true arm, its false arm, then what follows', () => {
+      render(<Harness steps={[step('create-user'), ifItem([step('vet-datamod')], [step('activate-api')]), step('view-permissions')]} />);
+      expect(within(tile(2)).getByText('If')).toBeInTheDocument();
+      expect(within(screen.getByLabelText('Step 2 true branch')).getByLabelText('Step 3 tile')).toHaveTextContent(/Vet/);
+      expect(within(screen.getByLabelText('Step 2 false branch')).getByLabelText('Step 4 tile')).toBeInTheDocument();
+      expect(tile(5)).toBeInTheDocument();
+    });
+
+    it('the condition offers what earlier steps give, and edits the IF', async () => {
+      render(<Harness steps={[step('create-user'), ifItem()]} />);
+      const value = screen.getByLabelText('Value') as HTMLSelectElement;
+      expect([...value.options].map((o) => o.value)).toContain('reference_no');
+      await userEvent.selectOptions(value, 'reference_no');
+      await userEvent.selectOptions(screen.getByLabelText('Test'), 'set');
+      expect(screen.queryByLabelText('Text')).toBeNull();
+      expect((latest[1] as Extract<DraftItem, { kind: 'if' }>).cond).toEqual({ value: 'reference_no', op: 'set', to: 'NEEDS_DDE' });
+    });
+
+    it('a function is added to an arm from its picker, and removed with ✕', async () => {
+      render(<Harness steps={[step('create-user'), ifItem()]} />);
+      const trueArm = screen.getByLabelText('Step 2 true branch');
+      await userEvent.selectOptions(within(trueArm).getByRole('combobox'), 'vet-datamod');
+      const added = latest[1] as Extract<DraftItem, { kind: 'if' }>;
+      expect(added.then.map((s) => s.fn)).toEqual(['vet-datamod']);
+      expect(added.else).toEqual([]);
+      await userEvent.click(screen.getByRole('button', { name: 'Remove step 3' }));
+      expect((latest[1] as Extract<DraftItem, { kind: 'if' }>).then).toEqual([]);
+    });
+
+    it("the flow check's errors show on the IF and on arm steps by their flat number", () => {
+      render(<Harness steps={[step('create-user'), ifItem([step('vet-datamod')])]} errors={['Step 2: the IF has no steps in either branch', 'Step 3: Vet needs DataMod ref']} />);
+      expect(tile(2)).toHaveTextContent('the IF has no steps in either branch');
+      expect(tile(3)).toHaveTextContent('Vet needs DataMod ref');
+    });
+
+    it('removing the IF removes its arms', async () => {
+      render(<Harness steps={[step('create-user'), ifItem([step('vet-datamod')])]} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Remove step 2' }));
+      expect(order()).toEqual(['create-user']);
+    });
   });
 
   it('a [tag] shows as a badge, and steps and chips with the same tag share a colour', () => {

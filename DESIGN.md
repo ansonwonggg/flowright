@@ -16,7 +16,10 @@ Status: v0.3. my-flows runs on it (migrated 2026-11-05; app, reporter and histor
 | Steps are typed with plain TypeScript, not registry names | Steps sit below the flow; their data often isn't a flow value (a page, a whole record). The registry rule applies where values cross processes: function inputs and outputs. |
 | A `json` field kind for structured inputs, typed through to `run` | The user spec (with its list of rights) is one value to the flow but a typed object to the code. Its validator and form config live on the field, so every place that checks a value uses the same rules. An empty `{}` counts as not given. |
 | The framework keeps the records | Every function on a record saves its outputs to it and reads missing inputs from it. That replaces the per-flow record code (`writeCreated`, `writeMember`, `userFor`, `memberFor`) with one rule, and lets a function run on a ref alone. |
-| Flows are strictly linear | No conditions. A step that only applies sometimes (member DDE vetting) waits until it exists. |
+| A flow step may be an IF with a then-arm and an else-arm, one level deep | Some steps only apply sometimes (member DDE vetting runs only when enrolment says `NEEDS_DDE`). One level, and arms of function steps only, keeps the flow file readable and the checks simple; a deeper tree hasn't been needed. Superseded "flows are strictly linear" on 2026-11-10. |
+| A flow is numbered and run laid out flat: each IF, then its then-arm, then its else-arm | "Step n" in check errors, run state, the CLI and the run page all count the same list, so the linear code paths stayed index-based. The arm an IF didn't take is marked `skipped`. |
+| An IF tests one value passed along, with `equals`, `notEquals`, or neither (is set) | The value must come from an earlier step, so the check can prove it exists; record values aren't read, because whether the record holds one is only known at run time. After an IF, a value counts as given only when both arms give it. |
+| The run page draws a flow as a canvas (n8n style), with a list view kept beside it | A canvas shows where a run is and which way an IF went at a glance; the list keeps every step's details on one screen. |
 | Generator writes code that fails until built | `new step` / `new function` produce files that pass `check` and typecheck, and throw "not built yet" when run, so nothing half-made can pass silently. |
 | The kit is given the repo's Playwright `test`, and gives out `defineStep` | flowkit imports nothing from Playwright at run time, so a repo that links it never loads a second copy of `@playwright/test`. Step files import the repo's `kit.ts`, never flowkit. |
 | `order` on a function | Lists (the app, the flow builder) follow the order people work in, not file names. |
@@ -38,7 +41,7 @@ functions), `lib/` (page objects, bypass, DDE API, its forms and form lists), `c
 
 1. Structured inputs: `field.json` with a validator and form config. Built.
 2. Records: kept by the framework. Built.
-3. Conditional steps: not now; flows stay linear.
+3. Conditional steps: built as an IF step (2026-11-10), one level deep.
 4. Generator: built (`flowkit new step|function|flow`).
 5. Old records: start fresh. The migration doesn't convert `out/created/` or `out/members/`; they stay on
    disk, unread.

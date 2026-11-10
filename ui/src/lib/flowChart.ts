@@ -1,4 +1,4 @@
-import { producedBefore, type FlowDef } from '../../../src/flow.ts';
+import { flatten, isIf, producedBefore, type FlowDef } from '../../../src/flow.ts';
 import type { RecordKind } from '../../../src/settings.ts';
 import type { Fn } from '../api.ts';
 
@@ -24,12 +24,14 @@ export const stepErrors = (errors: string[], index: number): string[] => {
   return errors.filter((e) => e.startsWith(prefix)).map((e) => e.slice(prefix.length));
 };
 
-/** Inputs of step `index` that an earlier step gives and the step leaves blank: what flows into it. */
+/** Inputs of step `index` (flat) that an earlier step gives and the step leaves blank: what flows into it. An IF takes none. */
 export const carried = (fns: Fn[], flow: FlowDef, index: number): string[] => {
-  const step = flow.steps[index];
-  const fn = fns.find((f) => f.id === step?.function);
+  const flat = flatten(flow);
+  const step = flat[index];
+  if (!step || isIf(step)) return [];
+  const fn = fns.find((f) => f.id === step.function);
   if (!fn || index === 0) return [];
-  const produced = producedBefore(fns, flow.steps, index);
+  const produced = producedBefore(fns, flat, index);
   const typed = step.values ?? {};
   return Object.keys(fn.inputs).filter((name) => produced.has(name) && typed[name] === undefined);
 };

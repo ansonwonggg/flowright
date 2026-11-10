@@ -215,3 +215,74 @@ describe('FlowBuilderPage flow chart', () => {
     expect(screen.getByLabelText('Step 1 tile')).not.toHaveTextContent('needs DataMod ref');
   });
 });
+
+describe('FlowBuilderPage IF in Form mode', () => {
+  const branchy = {
+    file: 'config/flows/branchy.flow.json',
+    label: 'branchy',
+    summary: '',
+    spec: {
+      title: 'Branchy',
+      steps: [
+        { function: 'member-register' },
+        { if: { value: 'mobile', equals: '9' }, then: [{ function: 'vet-datamod', values: { reference_no: 'DMD1' } }] },
+      ],
+    },
+  };
+
+  it('+ Add an IF needs a step before it, then adds an IF card with a condition and two branches', async () => {
+    page();
+    expect(screen.getByRole('button', { name: '+ Add an IF' })).toBeDisabled();
+    await userEvent.selectOptions(screen.getByLabelText('First step'), 'member-register');
+    await userEvent.click(screen.getByRole('button', { name: '+ Add an IF' }));
+    const card = screen.getByRole('region', { name: 'Step 2' });
+    expect(within(card).getByLabelText('Value')).toBeInTheDocument();
+    expect(within(card).getByLabelText('Step 2 true branch')).toHaveTextContent('True: runs when the test holds');
+    expect(within(card).getByLabelText('Step 2 false branch')).toHaveTextContent('False: runs otherwise');
+  });
+
+  it('a saved IF opens with its condition and arm steps numbered flat', () => {
+    savedFlows = [branchy];
+    page('/flow-builder?preset=config/flows/branchy.flow.json');
+    const card = screen.getByRole('region', { name: 'Step 2' });
+    expect(within(card).getByLabelText('Value')).toHaveValue('mobile');
+    expect(within(card).getByLabelText('Text')).toHaveValue('9');
+    expect(within(screen.getByLabelText('Step 2 true branch')).getByRole('region', { name: 'Step 3' })).toHaveTextContent('[Admin] Vet');
+  });
+
+  it('a step added to a branch goes into the flow that runs; the start dialog marks branch steps', async () => {
+    savedFlows = [branchy];
+    start.mutateAsync.mockResolvedValue({ id: 'r1' });
+    page('/flow-builder?preset=config/flows/branchy.flow.json');
+    await userEvent.selectOptions(within(screen.getByLabelText('Step 2 false branch')).getByLabelText('First step'), 'view-permissions');
+    await userEvent.click(screen.getByRole('button', { name: 'Run the flow' }));
+    const dialog = screen.getByRole('dialog', { name: 'Start Branchy?' });
+    expect(within(dialog).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      '[Web] Register',
+      'If mobile is 9',
+      'true → [Admin] Vet',
+      'false → [Web] View Permissions',
+    ]);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Start' }));
+    expect(start.mutateAsync.mock.calls[0][0].flow.steps[1]).toEqual({
+      if: { value: 'mobile', equals: '9' },
+      then: [{ function: 'vet-datamod', values: { reference_no: 'DMD1' } }],
+      else: [{ function: 'view-permissions' }],
+    });
+  });
+
+  it("the IF shows the flow check's errors for its step", () => {
+    savedFlows = [branchy];
+    checkErrors = ['Step 2: the IF needs mobile from an earlier step'];
+    page('/flow-builder?preset=config/flows/branchy.flow.json');
+    expect(screen.getByRole('region', { name: 'Step 2' })).toHaveTextContent('the IF needs mobile from an earlier step');
+  });
+
+  it('removing the IF removes its branches', async () => {
+    savedFlows = [branchy];
+    page('/flow-builder?preset=config/flows/branchy.flow.json');
+    await userEvent.click(screen.getByRole('button', { name: 'Remove step 2' }));
+    expect(screen.queryByRole('region', { name: 'Step 3' })).toBeNull();
+    expect(screen.queryByLabelText('Value')).toBeNull();
+  });
+});

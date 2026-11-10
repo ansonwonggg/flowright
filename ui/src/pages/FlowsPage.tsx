@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { isIf } from '../../../src/flow.ts';
 import type { FlowRun, Preset } from '../api.ts';
 import { FnTitle } from '../components/FnTitle.tsx';
 import { Grouped } from '../components/Grouped.tsx';
@@ -39,7 +40,11 @@ export const FlowCards = ({ flows }: { flows: Preset[] }) => (
   />
 );
 
-const passedSteps = (run: FlowRun) => `${run.steps.filter((s) => s.status === 'passed').length}/${run.steps.length}`;
+/** `passed/total` over the function steps that were meant to run: IFs and skipped steps don't count. */
+export const passedSteps = (run: FlowRun): string => {
+  const counted = run.steps.filter((s) => !isIf(s) && s.status !== 'skipped');
+  return `${counted.filter((s) => s.status === 'passed').length}/${counted.length}`;
+};
 
 export const FlowsPage = () => {
   const navigate = useNavigate();
@@ -48,7 +53,7 @@ export const FlowsPage = () => {
   return (
     <div className="wide-page">
       <h1>Flows</h1>
-      <p className="lead">Functions joined one after another on one record. Each step passes what it made on to the next.</p>
+      <p className="lead">Functions joined one after another, with IF branches where a step depends on a value. Each step passes what it made on to the next.</p>
       <FlowCards flows={presets?.flows ?? []} />
       <h2>Recent flow runs</h2>
       {runs.length ? (

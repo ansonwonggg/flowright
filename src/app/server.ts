@@ -5,7 +5,7 @@ import path from 'node:path';
 import { findFiles, loadRepo, manifestOf, type Manifest, type Repo } from '../discover.ts';
 import { applyEvent, emptyRun, EVENTS_ENV, parseLine, type RunView } from '../events.ts';
 import { valueProblem, type Fields } from '../fields.ts';
-import { flowProblems, newFlowRun, nextStepIndex, resolveInput, secretProblems, stepEnded, stepStarted, type FlowDef, type FlowRun } from '../flow.ts';
+import { flatten, flowProblems, flowSummary, fnStepAt, isIf, newFlowRun, nextStepIndex, resolveInput, secretProblems, stepEnded, stepStarted, type FlowDef, type FlowRun } from '../flow.ts';
 import { listFlowRuns, readFlowRun, readOutput, writeFlowRun } from '../flowRuns.ts';
 import { metaOf, type FunctionDef, type FunctionMeta } from '../fn.ts';
 import { hasReport, listRuns, newRunId, readRun, RUN_ID, RUN_ID_ENV, runDir, shownStatus, writeRun, type RunRecord } from '../history.ts';
@@ -90,8 +90,7 @@ const presets = () => ({
     ]),
   ),
   flows: flowFiles().map(({ file, spec }) => {
-    const titles = (Array.isArray(spec?.steps) ? spec.steps : []).map((s) => fnOf(s?.function)?.title ?? String(s?.function));
-    return { file, label: flowLabel(file, spec), summary: titles.join(' → '), spec };
+    return { file, label: flowLabel(file, spec), summary: flowSummary(METAS, spec), spec };
   }),
 });
 
@@ -270,7 +269,8 @@ const saveFlowRun = (run: FlowRun) => {
 };
 
 const flowWarnings = (def: FlowDef): string[] =>
-  def.steps.flatMap((step, i) => {
+  flatten(def).flatMap((step, i) => {
+    if (isIf(step)) return [];
     const fn = fnOf(step.function);
     const env = fn ? envMissing(fn, (step.values ?? {}) as Values) : [];
     return env.length ? [`Step ${i + 1}: .env.local is missing ${env.join(', ')}`] : [];
@@ -284,8 +284,9 @@ const advanceFlow = () => {
     saveFlowRun(run);
     return;
   }
-  const fn = fnOf(run.steps[index].function)!;
-  const { input, problems } = prepare(fn, resolveInput(fn, run.steps[index], run.values));
+  const step = fnStepAt(run, index);
+  const fn = fnOf(step.function)!;
+  const { input, problems } = prepare(fn, resolveInput(fn, step, run.values));
   if (problems.length) {
     flow = { ...stepEnded(stepStarted(run, index, masked(input)), { status: 'failed', error: `can't start: ${problems.join('; ')}` }, Date.now()), headed: run.headed };
     saveFlowRun(flow);
@@ -425,7 +426,7 @@ const postFlowRun: Handler = async (req, res) => {
   const def = cleanFlow(b.flow);
   const errors = flowProblems(METAS, FIELDS, def);
   if (errors.length) return json(res, 400, { error: `The flow can't run:\n- ${errors.join('\n- ')}` });
-  const name = (typeof b.name === 'string' && b.name.trim()) || def.title || def.steps.map((s) => fnOf(s.function)?.title).join(' → ');
+  const name = (typeof b.name === 'string' && b.name.trim()) || def.title || flowSummary(METAS, def);
   flow = { ...newFlowRun(METAS, def, { id: newRunId(), name, now: Date.now() }), headed: b.headed === true };
   advanceFlow();
   return json(res, 202, { id: flow.id });

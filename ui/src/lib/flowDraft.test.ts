@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import type { FieldJson } from '../api.ts';
 import { FIELDS, FUNCTIONS } from './fixtures.test-utils.ts';
-import { draftFrom, dropGaps, flowOf, groupOf, titleOf, formOf, inputSource, insertAt, moveTo, newStep, placeholderFor } from './flowDraft.ts';
+import {
+  allSteps,
+  draftFrom,
+  dropGaps,
+  flatIndexes,
+  flowOf,
+  groupOf,
+  isDraftIf,
+  newIf,
+  removeKey,
+  replaceStep,
+  testableBefore,
+  titleOf,
+  formOf,
+  inputSource,
+  insertAt,
+  moveTo,
+  newStep,
+  placeholderFor,
+  updateIf,
+  type DraftIf,
+} from './flowDraft.ts';
 
 const options = { creators: [{ value: 'ER', label: 'ER' }], userTypes: [{ value: 'Company AP', label: 'Company AP' }] };
 const fieldOf = (name: string) => FIELDS.find((f) => f.name === name)!;
@@ -122,4 +143,77 @@ describe('titleOf', () => {
 describe('groupOf', () => {
   it("a saved flow's group, trimmed", () => expect(groupOf({ group: ' Member ', steps: [] })).toBe('Member'));
   for (const def of [undefined, null, 'x', [], {}, { group: 3 }, { group: '  ' }]) it(`none in ${JSON.stringify(def)}`, () => expect(groupOf(def)).toBe(''));
+});
+
+describe('IF items', () => {
+  const saved = {
+    steps: [
+      { function: 'member-register' },
+      { if: { value: 'status', equals: 'NEEDS_DDE' }, then: [{ function: 'vet-datamod', values: { reference_no: 'DMD1' } }], else: [{ function: 'view-permissions' }] },
+      { function: 'activate-api' },
+    ],
+  };
+  const items = () => draftFrom(FUNCTIONS, FIELDS, saved, options);
+
+  it('a saved IF comes back as an IF item with its arms, and goes back out unchanged', () => {
+    const got = items();
+    expect(isDraftIf(got[1])).toBe(true);
+    const ifItem = got[1] as DraftIf;
+    expect(ifItem.cond).toEqual({ value: 'status', op: 'equals', to: 'NEEDS_DDE' });
+    expect(ifItem.then.map((s) => s.fn)).toEqual(['vet-datamod']);
+    expect(flowOf(got, FIELDS)).toEqual(saved);
+  });
+
+  it('notEquals and "is set" conditions round-trip; an empty else is left out; text is trimmed', () => {
+    for (const cond of [{ value: 's', notEquals: 'X' }, { value: 's' }, { value: 's', equals: '' }]) {
+      const def = { steps: [{ if: cond, then: [{ function: 'vet-datamod' }] }] };
+      expect(flowOf(draftFrom(FUNCTIONS, FIELDS, def, options), FIELDS)).toEqual(def);
+    }
+    const item: DraftIf = { ...newIf(), cond: { value: ' s ', op: 'equals', to: ' A ' } };
+    expect(flowOf([item], FIELDS)).toEqual({ steps: [{ if: { value: 's', equals: 'A' }, then: [] }] });
+  });
+
+  it('newIf: blank condition, empty arms, a key of its own', () => {
+    const a = newIf();
+    expect({ ...a, key: '' }).toEqual({ key: '', kind: 'if', cond: { value: '', op: 'equals', to: '' }, then: [], else: [] });
+    expect(newIf().key).not.toBe(a.key);
+  });
+
+  it('flatIndexes numbers items and arm steps as the flow check does; allSteps lists function steps in that order', () => {
+    const got = items();
+    const at = flatIndexes(got);
+    const ifItem = got[1] as DraftIf;
+    expect([at.get(got[0].key), at.get(got[1].key), at.get(ifItem.then[0].key), at.get(ifItem.else[0].key), at.get(got[2].key)]).toEqual([0, 1, 2, 3, 4]);
+    expect(allSteps(got).map((s) => s.fn)).toEqual(['member-register', 'vet-datamod', 'view-permissions', 'activate-api']);
+  });
+
+  it('replaceStep and removeKey reach arm steps; removing the IF drops its arms', () => {
+    const got = items();
+    const armStep = (got[1] as DraftIf).then[0];
+    const replaced = replaceStep(got, armStep.key, { ...armStep, values: { reference_no: 'DMD2' } });
+    expect((replaced[1] as DraftIf).then[0].values).toEqual({ reference_no: 'DMD2' });
+    expect(replaced[0]).toBe(got[0]);
+    expect((removeKey(got, armStep.key)[1] as DraftIf).then).toEqual([]);
+    expect(removeKey(got, got[1].key).map((i) => (isDraftIf(i) ? 'IF' : i.fn))).toEqual(['member-register', 'activate-api']);
+  });
+
+  it('updateIf changes only the IF it names', () => {
+    const got = items();
+    const next = updateIf(got, got[1].key, (it) => ({ ...it, cond: { ...it.cond, to: 'X' } }));
+    expect((next[1] as DraftIf).cond.to).toBe('X');
+    expect(updateIf(got, got[0].key, (it) => ({ ...it, then: [] }))).toEqual(got);
+  });
+
+  it('testableBefore: what earlier steps are sure to give', () => {
+    const flow = flowOf(items(), FIELDS);
+    expect(testableBefore(FUNCTIONS, flow, 1)).toEqual(['registration_no', 'mobile']);
+    expect(testableBefore(FUNCTIONS, flow, 0)).toEqual([]);
+  });
+
+  it('an arm step\'s placeholder names the step before the IF that gives it', () => {
+    const flow = flowOf(items(), FIELDS);
+    expect(placeholderFor(FUNCTIONS, flow, 3, fieldOf('mobile'), true)).toBe('from step 1');
+  });
+
+  it('dropGaps: a dragged IF from the palette may drop in any gap', () => expect(dropGaps(['a', 'b'], { if: true })).toEqual([true, true, true]));
 });

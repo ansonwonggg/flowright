@@ -107,7 +107,7 @@ ${o.record ? `  record: ${quote(o.record)},\n` : ''}${o.starts ? '  starts: true
  * doesn't start a record is one of these.
  */
 export const flowSource = (o: { title: string; functions: string[]; fns: FunctionMeta[]; fields: Fields }): FlowDef => {
-  const steps: FlowDef['steps'] = o.functions.map((id) => ({ function: id }));
+  const steps = o.functions.map((id) => ({ function: id }));
   return {
     title: o.title,
     steps: steps.map((step, i) => {

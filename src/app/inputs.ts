@@ -1,5 +1,5 @@
 import { valueProblem, type Fields } from '../fields.ts';
-import type { FlowDef } from '../flow.ts';
+import type { Condition, FlowDef, FlowStep, FnStep } from '../flow.ts';
 import type { FunctionMeta } from '../fn.ts';
 import { fillFromRecord, type RecordFile } from '../records.ts';
 import { cleanValues, type Values } from '../values.ts';
@@ -62,9 +62,34 @@ export const summarize = (input: unknown, fields: Fields, shown?: string[]): str
   return [...json, ...names.map((name) => v[name])].filter(Boolean).join(' · ');
 };
 
+const objectOf = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+
+const cleanFnStep = (s: unknown): FnStep => {
+  const step = objectOf(s);
+  const values = step.values && typeof step.values === 'object' && !Array.isArray(step.values) ? cleanValues(step.values as Record<string, unknown>) : {};
+  return { function: typeof step.function === 'string' ? step.function : '', ...(Object.keys(values).length && { values }) };
+};
+
+const cleanCondition = (c: unknown): Condition => {
+  const cond = objectOf(c);
+  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : undefined);
+  const equals = text(cond.equals);
+  const notEquals = text(cond.notEquals);
+  return { value: text(cond.value) ?? '', ...(equals !== undefined && { equals }), ...(notEquals !== undefined && { notEquals }) };
+};
+
+const cleanStep = (s: unknown): FlowStep => {
+  const step = objectOf(s);
+  if (!('if' in step)) return cleanFnStep(s);
+  const arm = (list: unknown) => (Array.isArray(list) ? list.map((a) => cleanStep(a) as FnStep) : []);
+  const otherwise = arm(step.else);
+  return { if: cleanCondition(step.if), then: arm(step.then), ...(otherwise.length && { else: otherwise }) };
+};
+
 /**
  * A flow the page sent, reduced to its title and group (trimmed, left out when blank) and each step's
- * function and values. Anything else is dropped; `flowProblems` then says what is wrong with what is left.
+ * function and values, or an IF's condition (text trimmed) and arms (an empty else left out). Anything
+ * else is dropped; `flowProblems` then says what is wrong with what is left, including an IF in an arm.
  */
 export const cleanFlow = (body: unknown): FlowDef => {
   const raw = (body as { steps?: unknown; title?: unknown; group?: unknown } | null) ?? {};
@@ -72,10 +97,6 @@ export const cleanFlow = (body: unknown): FlowDef => {
   return {
     ...(typeof raw.title === 'string' && raw.title.trim() && { title: raw.title.trim() }),
     ...(typeof raw.group === 'string' && raw.group.trim() && { group: raw.group.trim() }),
-    steps: steps.map((s) => {
-      const step = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>;
-      const values = step.values && typeof step.values === 'object' && !Array.isArray(step.values) ? cleanValues(step.values as Record<string, unknown>) : {};
-      return { function: typeof step.function === 'string' ? step.function : '', ...(Object.keys(values).length && { values }) };
-    }),
+    steps: steps.map(cleanStep),
   };
 };

@@ -4,9 +4,12 @@ import { ApiError, type Meta, type Preset } from '../api.ts';
 import { useDialog } from '../components/Dialog.tsx';
 import { RunBar } from '../components/RunBar.tsx';
 import { fileNameOf, slugify } from '../lib/flowChart.ts';
-import { draftFrom, flowOf, groupOf, newStep, titleOf, type DraftStep } from '../lib/flowDraft.ts';
+import { flatten, flowSummary, isIf, stepTitle } from '../../../src/flow.ts';
+import { stepErrors } from '../lib/flowChart.ts';
+import { draftFrom, flatIndexes, flowOf, groupOf, isDraftIf, newIf, newStep, removeKey, replaceStep, titleOf, type DraftItem } from '../lib/flowDraft.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
 import { DragSteps } from './DragSteps.tsx';
+import { AddFunction, IfCard } from './IfBlock.tsx';
 import { StepCard } from './StepCard.tsx';
 import { useFlowCheck, useLive, useMeta, usePresets, useSaveFlow, useStartFlow } from '../queries.ts';
 
@@ -19,7 +22,7 @@ const MODES: [BuilderMode, string][] = [
 
 const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
   const navigate = useNavigate();
-  const [steps, setSteps] = useState<DraftStep[]>(() => (initial ? draftFrom(meta.functions, meta.fields, initial.spec, meta.options) : []));
+  const [steps, setSteps] = useState<DraftItem[]>(() => (initial ? draftFrom(meta.functions, meta.fields, initial.spec, meta.options) : []));
   const [title, setTitle] = useState(() => titleOf(initial?.spec));
   const [group, setGroup] = useState(() => groupOf(initial?.spec));
   const [fileName, setFileName] = useState(() => fileNameOf(initial?.file));
@@ -38,9 +41,10 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
   const warnings = check.data?.warnings ?? [];
   const checking = check.isPending || check.isPlaceholderData;
   const fnOf = (id: string) => meta.functions.find((f) => f.id === id);
-  const titles = steps.map((s) => fnOf(s.fn)?.title ?? s.fn);
+  const at = flatIndexes(steps);
+  const titles = flatten(flow).map((s) => `${!isIf(s) && s.branch ? `${s.branch.arm === 'then' ? 'true' : 'false'} → ` : ''}${stepTitle(meta.functions, s)}`);
   const named = title.trim() || fileName.trim();
-  const runName = named || titles.join(' → ');
+  const runName = named || flowSummary(meta.functions, flow);
   const saveAs = fileName.trim() || slugify(title);
   const kinds = Object.values(meta.settings.records).map((r) => r.label);
   const offered = meta.functions;
@@ -50,7 +54,7 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
       <>
         <ol>
           {titles.map((t, i) => (
-            <li key={steps[i].key}>{t}</li>
+            <li key={i}>{t}</li>
           ))}
         </ol>
         <p className="box warn">This makes permanent records on DEV.</p>
@@ -108,7 +112,7 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
       </div>
       <p className="lead">
         Functions run one after another{kinds.length > 0 && ` on one ${kinds.join(' or one ')}`}. A blank input takes the value an earlier step gave under that name, or the
-        record's.
+        record's. An IF runs its true or false branch depending on a value an earlier step gave.
       </p>
       {saving && (
         <section className="card drawer-card" aria-label="Save the flow">
@@ -141,29 +145,38 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
         <DragSteps steps={steps} flow={flow} meta={meta} errors={errors} onSteps={setSteps} />
       ) : (
         <div className="stack">
-          {steps.map((step, i) => (
-            <StepCard
-              key={step.key}
-              index={i}
-              step={step}
-              fn={fnOf(step.fn)}
-              flow={flow}
-              meta={meta}
-              onChange={(next) => setSteps(steps.map((s) => (s.key === step.key ? next : s)))}
-              onRemove={() => setSteps(steps.filter((s) => s.key !== step.key))}
-            />
-          ))}
+          {steps.map((item) =>
+            isDraftIf(item) ? (
+              <IfCard
+                key={item.key}
+                item={item}
+                index={at.get(item.key) ?? 0}
+                at={at}
+                flow={flow}
+                meta={meta}
+                errors={stepErrors(errors, at.get(item.key) ?? 0)}
+                onChange={(next) => setSteps(steps.map((s) => (s.key === item.key ? next : s)))}
+                onRemove={() => setSteps(removeKey(steps, item.key))}
+              />
+            ) : (
+              <StepCard
+                key={item.key}
+                index={at.get(item.key) ?? 0}
+                step={item}
+                fn={fnOf(item.fn)}
+                flow={flow}
+                meta={meta}
+                onChange={(next) => setSteps(replaceStep(steps, item.key, next))}
+                onRemove={() => setSteps(removeKey(steps, item.key))}
+              />
+            ),
+          )}
           {offered.length ? (
-            <div className="field add-step">
-              <label htmlFor="add-step">{steps.length ? 'Add a step' : 'First step'}</label>
-              <select id="add-step" value="" onChange={(e) => e.target.value && setSteps([...steps, newStep(meta.functions, meta.fields, e.target.value, meta.options)])}>
-                <option value="">Choose a function…</option>
-                {offered.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.title}
-                  </option>
-                ))}
-              </select>
+            <div className="add-row">
+              <AddFunction id="add-step" label={steps.length ? 'Add a step' : 'First step'} fns={offered} onAdd={(id) => setSteps([...steps, newStep(meta.functions, meta.fields, id, meta.options)])} />
+              <button type="button" className="btn" disabled={!steps.length} title={steps.length ? 'Branch on a value an earlier step gives' : 'An IF needs a step before it'} onClick={() => setSteps([...steps, newIf()])}>
+                + Add an IF
+              </button>
             </div>
           ) : (
             <div className="muted center">No function can follow the last one.</div>
