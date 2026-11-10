@@ -30,7 +30,6 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          registry-url: https://registry.npmjs.org
 
       - name: npm with trusted publishing (11.5.1 or later)
         run: npm install -g npm@11
@@ -51,8 +50,6 @@ jobs:
           dist_tag=latest
           case "$VERSION" in *-*) dist_tag=next ;; esac
           npm publish --provenance --access public --tag "$dist_tag"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: GitHub release
         run: |
