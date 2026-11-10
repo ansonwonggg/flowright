@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
+import type { Preset } from '../api.ts';
 import { fn, META } from '../lib/fixtures.test-utils.ts';
 import { flowOf, isDraftIf, type DraftItem, type DraftStep } from '../lib/flowDraft.ts';
 import { DragSteps } from './DragSteps.tsx';
@@ -9,10 +10,10 @@ import { DragSteps } from './DragSteps.tsx';
 const step = (fn: string): DraftStep => ({ key: fn, fn, values: {}, forms: {} });
 
 let latest: DraftItem[] = [];
-const Harness = ({ steps, errors = [] }: { steps: DraftItem[]; errors?: string[] }) => {
+const Harness = ({ steps, errors = [], flows }: { steps: DraftItem[]; errors?: string[]; flows?: Preset[] }) => {
   const [all, setAll] = useState(steps);
   latest = all;
-  return <DragSteps steps={all} flow={flowOf(all, META.fields)} meta={META} errors={errors} onSteps={setAll} />;
+  return <DragSteps steps={all} flow={flowOf(all, META.fields)} meta={META} errors={errors} onSteps={setAll} flows={flows} />;
 };
 
 const order = () => latest.map((s) => (isDraftIf(s) ? 'IF' : s.fn));
@@ -259,10 +260,138 @@ describe('DragSteps', () => {
       expect(tile(3)).toHaveTextContent('Vet needs DataMod ref');
     });
 
+    const arms = () => {
+      const it = latest.find(isDraftIf)!;
+      return { then: it.then.map((s) => s.fn), else: it.else.map((s) => s.fn) };
+    };
+    const laneGap = (arm: 'then' | 'else', n: number) => screen.getByTestId(`gap-if2-${arm}-${n}`);
+
+    it('the arms show drop zones only while something that fits is dragged', () => {
+      render(<Harness steps={[step('create-user'), ifItem([step('vet-datamod')])]} />);
+      expect(laneGap('then', 0)).not.toHaveClass('ok');
+      fireEvent.dragStart(chip('[API] Activate'), { dataTransfer });
+      expect(laneGap('then', 0)).toHaveClass('ok');
+      expect(laneGap('then', 1)).toHaveClass('ok');
+      expect(laneGap('else', 0)).toHaveClass('ok');
+      fireEvent.dragOver(laneGap('else', 0));
+      expect(laneGap('else', 0)).toHaveClass('over');
+      fireEvent.dragEnd(chip('[API] Activate'));
+      expect(laneGap('else', 0)).not.toHaveClass('ok');
+    });
+
+    it('a function dragged from the palette drops into an arm', () => {
+      render(<Harness steps={[step('member-enrol'), ifItem()]} />);
+      dragTo(chip('[Admin] Vet'), laneGap('then', 0));
+      expect(arms()).toEqual({ then: ['vet-datamod'], else: [] });
+      dragTo(chip('[API] Activate'), laneGap('then', 0));
+      expect(arms()).toEqual({ then: ['activate-api', 'vet-datamod'], else: [] });
+    });
+
+    it('an IF, from the palette or placed, never opens the arms', () => {
+      render(<Harness steps={[step('create-user'), ifItem([step('vet-datamod')])]} />);
+      fireEvent.dragStart(document.querySelector('.if-chip') as HTMLElement);
+      expect(gap(1)).toHaveClass('ok');
+      expect(laneGap('then', 0)).not.toHaveClass('ok');
+      fireEvent.dragEnd(document.querySelector('.if-chip') as HTMLElement);
+      fireEvent.dragStart(tile(2), { dataTransfer });
+      expect(gap(0)).toHaveClass('ok');
+      expect(laneGap('then', 0)).not.toHaveClass('ok');
+      expect(laneGap('else', 0)).not.toHaveClass('ok');
+    });
+
+    it('a step on the main line moves into an arm', () => {
+      render(<Harness steps={[step('create-user'), ifItem(), step('vet-datamod')]} />);
+      dragTo(tile(3), laneGap('else', 0));
+      expect(order()).toEqual(['create-user', 'IF']);
+      expect(arms()).toEqual({ then: [], else: ['vet-datamod'] });
+    });
+
+    it('an arm step is draggable, fades while it moves, and moves out to the main line', () => {
+      render(<Harness steps={[step('create-user'), ifItem([step('vet-datamod')]), step('view-permissions')]} />);
+      expect(tile(3)).toHaveAttribute('draggable', 'true');
+      fireEvent.dragStart(tile(3), { dataTransfer });
+      expect(tile(3)).toHaveClass('moving');
+      expect(laneGap('then', 0)).not.toHaveClass('ok');
+      expect(laneGap('then', 1)).not.toHaveClass('ok');
+      fireEvent.dragOver(gap(3));
+      fireEvent.drop(gap(3));
+      expect(order()).toEqual(['create-user', 'IF', 'view-permissions', 'vet-datamod']);
+      expect(arms()).toEqual({ then: [], else: [] });
+    });
+
+    it('an arm step moves to the other arm, and within its own', () => {
+      render(<Harness steps={[step('create-user'), ifItem([step('vet-datamod'), step('activate-api')])]} />);
+      dragTo(tile(4), laneGap('then', 0));
+      expect(arms()).toEqual({ then: ['activate-api', 'vet-datamod'], else: [] });
+      dragTo(tile(3), laneGap('else', 0));
+      expect(arms()).toEqual({ then: ['vet-datamod'], else: ['activate-api'] });
+    });
+
+    it('dragging an arm step does not drag its IF', () => {
+      render(<Harness steps={[step('create-user'), ifItem([step('vet-datamod')])]} />);
+      fireEvent.dragStart(tile(3), { dataTransfer });
+      expect(tile(2)).not.toHaveClass('moving');
+    });
+
     it('removing the IF removes its arms', async () => {
       render(<Harness steps={[step('create-user'), ifItem([step('vet-datamod')])]} />);
       await userEvent.click(screen.getByRole('button', { name: 'Remove step 2' }));
       expect(order()).toEqual(['create-user']);
+    });
+  });
+
+  describe('saved flows', () => {
+    const enrolVet: Preset = {
+      file: 'config/flows/member-enrolment.flow.json',
+      label: 'Member enrolment',
+      summary: 'Enrol → If status is NEEDS_DDE: Vet',
+      spec: { steps: [{ function: 'member-enrol', values: { mobile: '91234567' } }, { if: { value: 'status', equals: 'NEEDS_DDE' }, then: [{ function: 'vet-datamod' }] }] },
+    };
+    const twoSteps: Preset = { file: 'config/flows/er.flow.json', label: 'ER pair', summary: 'Create → Vet', spec: { steps: [{ function: 'create-user' }, { function: 'vet-datamod' }] } };
+    const flowChip = (label: string) => screen.getByRole('button', { name: `Add the steps of ${label}` }).closest('.fn-chip') as HTMLElement;
+    const ifOf = () => latest.find(isDraftIf)!;
+
+    it('no saved flows: no group; with some, a "Saved flows" group lists each, its summary as the tooltip', () => {
+      const { unmount } = render(<Harness steps={[]} />);
+      expect(screen.queryByText('Saved flows')).toBeNull();
+      unmount();
+      render(<Harness steps={[]} flows={[enrolVet, twoSteps]} />);
+      expect(screen.getByText('Saved flows')).toBeInTheDocument();
+      expect(flowChip('Member enrolment')).toHaveAttribute('title', 'Enrol → If status is NEEDS_DDE: Vet');
+      expect(flowChip('ER pair')).toHaveAttribute('draggable', 'true');
+    });
+
+    it('+ copies its steps to the end, typed values and IF arms included', async () => {
+      render(<Harness steps={[step('member-register')]} flows={[enrolVet]} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Add the steps of Member enrolment' }));
+      expect(order()).toEqual(['member-register', 'member-enrol', 'IF']);
+      expect((latest[1] as DraftStep).values).toEqual({ mobile: '91234567' });
+      expect(ifOf().cond).toEqual({ value: 'status', op: 'equals', to: 'NEEDS_DDE' });
+      expect(ifOf().then.map((s) => s.fn)).toEqual(['vet-datamod']);
+    });
+
+    it('dragged onto an arrow, its steps go in there', () => {
+      render(<Harness steps={[step('create-user'), step('activate-api')]} flows={[twoSteps]} />);
+      dragTo(flowChip('ER pair'), gap(1));
+      expect(order()).toEqual(['create-user', 'create-user', 'vet-datamod', 'activate-api']);
+    });
+
+    it('each copy is its own: dropping twice gives steps with different keys', async () => {
+      render(<Harness steps={[]} flows={[twoSteps]} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Add the steps of ER pair' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Add the steps of ER pair' }));
+      expect(new Set(latest.map((s) => s.key)).size).toBe(4);
+    });
+
+    it('a flow without an IF drops into an arm; one with an IF never opens the arms', () => {
+      const branch: DraftItem = { key: 'if', kind: 'if', cond: { value: 'status', op: 'set', to: '' }, then: [], else: [] };
+      render(<Harness steps={[step('member-enrol'), branch]} flows={[enrolVet, twoSteps]} />);
+      fireEvent.dragStart(flowChip('Member enrolment'), { dataTransfer });
+      expect(screen.getByTestId('gap-if2-then-0')).not.toHaveClass('ok');
+      expect(gap(0)).toHaveClass('ok');
+      fireEvent.dragEnd(flowChip('Member enrolment'));
+      dragTo(flowChip('ER pair'), screen.getByTestId('gap-if2-else-0'));
+      expect(ifOf().else.map((s) => s.fn)).toEqual(['create-user', 'vet-datamod']);
     });
   });
 

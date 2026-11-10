@@ -20,7 +20,7 @@ const MODES: [BuilderMode, string][] = [
   ['drag', 'Flow chart'],
 ];
 
-const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
+const FlowBuilder = ({ meta, initial, flows }: { meta: Meta; initial?: Preset; flows?: Preset[] }) => {
   const navigate = useNavigate();
   const [steps, setSteps] = useState<DraftItem[]>(() => (initial ? draftFrom(meta.functions, meta.fields, initial.spec, meta.options) : []));
   const [title, setTitle] = useState(() => titleOf(initial?.spec));
@@ -144,7 +144,7 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
         </section>
       )}
       {mode === 'drag' ? (
-        <DragSteps steps={steps} flow={flow} meta={meta} errors={errors} onSteps={setSteps} />
+        <DragSteps steps={steps} flow={flow} meta={meta} errors={errors} onSteps={setSteps} flows={flows} />
       ) : (
         <div className="stack">
           {steps.map((item) =>
@@ -221,5 +221,5 @@ export const FlowBuilderPage = () => {
   if (!meta || !presets) return <div className="empty">Loading…</div>;
   const preset = wanted ? presets.flows.find((p) => p.file === wanted) : undefined;
   if (wanted && !preset) return <div className="empty">No saved flow {wanted}.</div>;
-  return <FlowBuilder key={wanted ?? 'new'} meta={meta} initial={preset} />;
+  return <FlowBuilder key={wanted ?? 'new'} meta={meta} initial={preset} flows={presets.flows} />;
 };

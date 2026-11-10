@@ -1,15 +1,19 @@
 import { Fragment, useState, type DragEvent } from 'react';
 import { functionsIn, type Arm } from '../../../src/flow.ts';
-import type { FlowDef, Fn, Meta } from '../api.ts';
+import type { FlowDef, Fn, Meta, Preset } from '../api.ts';
 import { carried, flowGives, groupByRecord, missingInputs, someOf, splitTag, startLabel, stepErrors, toneOf } from '../lib/flowChart.ts';
 import {
+  canDrop,
+  draftFrom,
   dropGaps,
   flatIndexes,
-  insertAt,
   isDraftIf,
+  moveKeyTo,
   moveTo,
   newIf,
   newStep,
+  putAllAt,
+  putAt,
   removeKey,
   replaceStep,
   testableBefore,
@@ -17,12 +21,13 @@ import {
   type DraftIf,
   type DraftItem,
   type DraftStep,
-  type Dragged,
+  type Held,
+  type Place,
 } from '../lib/flowDraft.ts';
 import { AddFunction, ConditionEditor } from './IfBlock.tsx';
 import { StepCard } from './StepCard.tsx';
 
-export type DragStepsProps = { steps: DraftItem[]; flow: FlowDef; meta: Meta; errors: string[]; onSteps: (steps: DraftItem[]) => void };
+export type DragStepsProps = { steps: DraftItem[]; flow: FlowDef; meta: Meta; errors: string[]; onSteps: (steps: DraftItem[]) => void; flows?: Preset[] };
 
 const startDrag = (e: DragEvent, text: string) => {
   e.dataTransfer?.setData('text/plain', text);
@@ -53,13 +58,14 @@ const MAX_SHOWN_VALUES = 2;
  * is where a dragged function or step can drop; only the arrows where the flow stays in order open while
  * dragging. `errors` are the flow check's; each step shows its own.
  */
-export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps) => {
-  const [dragged, setDragged] = useState<Dragged | null>(null);
-  const [over, setOver] = useState<number | null>(null);
+export const DragSteps = ({ steps, flow, meta, errors, onSteps, flows = [] }: DragStepsProps) => {
+  const [dragged, setDragged] = useState<Held | null>(null);
+  const [over, setOver] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const fns = meta.functions;
   const ids = steps.map((s) => (isDraftIf(s) ? '' : s.fn));
-  const gaps = dragged ? dropGaps(ids, dragged) : [];
+  const fits = (place: Place) => Boolean(dragged && canDrop(steps, dragged, place));
+  const isMoving = (key: string) => Boolean(dragged && 'key' in dragged && dragged.key === key);
   const fnOf = (id: string) => fns.find((f) => f.id === id);
   const gives = flowGives(fns, functionsIn(flow));
   const at = flatIndexes(steps);
@@ -69,38 +75,53 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
     setDragged(null);
     setOver(null);
   };
-  const add = (id: string, gap: number) => onSteps(insertAt(steps, newStep(fns, meta.fields, id, meta.options), gap));
-  const addIf = (gap: number) => onSteps(insertAt<DraftItem>(steps, newIf(), gap));
+  const add = (id: string, place: Place) => onSteps(putAt(steps, newStep(fns, meta.fields, id, meta.options), place));
+  const addIf = (gap: number) => onSteps(putAt(steps, newIf(), { gap }));
   const move = (from: number, gap: number) => onSteps(moveTo(steps, from, gap));
   const remove = (key: string) => onSteps(removeKey(steps, key));
-  const drop = (gap: number) => {
-    if (dragged && gaps[gap]) {
-      if ('fn' in dragged) add(dragged.fn, gap);
-      else if ('if' in dragged) addIf(gap);
-      else move(dragged.from, gap);
+  const copyOf = (saved: Preset) => draftFrom(fns, meta.fields, saved.spec, meta.options);
+  const drop = (place: Place) => {
+    if (dragged && canDrop(steps, dragged, place)) {
+      if ('fn' in dragged) add(dragged.fn, place);
+      else if ('if' in dragged) addIf(place.gap);
+      else if ('copy' in dragged) onSteps(putAllAt(steps, dragged.copy, place));
+      else onSteps(moveKeyTo(steps, dragged.key, place));
     }
     end();
   };
 
+  const dropTarget = (id: string, place: Place) => ({
+    'data-testid': id,
+    onDragOver: (e: DragEvent) => {
+      if (!fits(place)) return;
+      e.preventDefault();
+      setOver(id);
+    },
+    onDragLeave: () => setOver((o) => (o === id ? null : o)),
+    onDrop: (e: DragEvent) => {
+      e.preventDefault();
+      drop(place);
+    },
+  });
+
+  const laneGapAt = (n: number, ifKey: string, arm: Arm, gap: number) => {
+    const id = `gap-if${n}-${arm}-${gap}`;
+    const place = { gap, lane: { ifKey, arm } };
+    const cls = ['edge', 'drop', 'lane-drop', fits(place) && 'ok', over === id && 'over'].filter(Boolean).join(' ');
+    return (
+      <div key={id} className={cls} {...dropTarget(id, place)}>
+        <div className="slot">Drop here</div>
+      </div>
+    );
+  };
+
   const edgeAt = (gap: number, empty = false) => {
-    const ok = Boolean(gaps[gap]);
-    const cls = ['edge', 'drop', empty && 'empty-lane', ok && 'ok', over === gap && 'over'].filter(Boolean).join(' ');
+    const id = `gap-${gap}`;
+    const ok = fits({ gap });
+    const cls = ['edge', 'drop', empty && 'empty-lane', ok && 'ok', over === id && 'over'].filter(Boolean).join(' ');
     const values = gap > 0 && gap < steps.length ? carried(fns, flow, flatAt(steps[gap].key)) : [];
     return (
-      <div
-        className={cls}
-        data-testid={`gap-${gap}`}
-        onDragOver={(e) => {
-          if (!ok) return;
-          e.preventDefault();
-          setOver(gap);
-        }}
-        onDragLeave={() => setOver((g) => (g === gap ? null : g))}
-        onDrop={(e) => {
-          e.preventDefault();
-          drop(gap);
-        }}
-      >
+      <div className={cls} {...dropTarget(id, { gap })}>
         <span className="line" />
         <div className="slot">{empty ? 'Drag a function here to start' : 'Drop here'}</div>
         <span className="line" />
@@ -132,7 +153,29 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
       <span className="chip-title">
         <Tag title={f.title} />
       </span>
-      <button type="button" className="btn small" aria-label={`Add ${f.title}`} onClick={() => add(f.id, ids.length)}>
+      <button type="button" className="btn small" aria-label={`Add ${f.title}`} onClick={() => add(f.id, { gap: ids.length })}>
+        +
+      </button>
+    </div>
+  );
+
+  const flowChip = (saved: Preset) => (
+    <div
+      key={saved.file}
+      className="fn-chip flow-chip"
+      draggable
+      title={saved.summary}
+      onDragStart={(e) => {
+        startDrag(e, saved.file);
+        setDragged({ copy: copyOf(saved) });
+      }}
+      onDragEnd={end}
+    >
+      <span className="chip-title">
+        <span className="tag">FLOW</span>
+        <span className="name">{saved.label}</span>
+      </span>
+      <button type="button" className="btn small" aria-label={`Add the steps of ${saved.label}`} onClick={() => onSteps(putAllAt(steps, copyOf(saved), { gap: steps.length }))}>
         +
       </button>
     </div>
@@ -179,7 +222,16 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
     const { missing, other } = missingInputs(stepErrors(errors, n - 1), fn?.title);
     return (
       <div key={step.key} className={`node-wrap${isOpen ? ' open' : ''}`}>
-        <div className={`node small${toneClass(title)}${stateClass(missing, other)}`} aria-label={`Step ${n} tile`}>
+        <div
+          className={`node small${toneClass(title)}${isMoving(step.key) ? ' moving' : ''}${stateClass(missing, other)}`}
+          aria-label={`Step ${n} tile`}
+          draggable
+          onDragStart={(e) => {
+            startDrag(e, step.fn);
+            setDragged({ key: step.key });
+          }}
+          onDragEnd={end}
+        >
           <div className="node-head">
             <span className="step-no">{n}</span>
             <b className="node-title">
@@ -205,7 +257,7 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
   const ifNode = (item: DraftIf, i: number) => {
     const n = flatAt(item.key) + 1;
     const moves = dropGaps(ids, { from: i });
-    const moving = dragged && 'from' in dragged && dragged.from === i;
+    const moving = isMoving(item.key);
     const problems = stepErrors(errors, n - 1);
     const setArm = (arm: Arm, list: DraftStep[]) => onSteps(updateIf(steps, item.key, (it) => ({ ...it, [arm]: list })));
     return (
@@ -216,7 +268,7 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
           draggable
           onDragStart={(e) => {
             startDrag(e, 'if');
-            setDragged({ from: i });
+            setDragged({ key: item.key });
           }}
           onDragEnd={end}
         >
@@ -244,7 +296,13 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
           {(['then', 'else'] as const).map((arm) => (
             <div key={arm} className={`if-lane ${arm}`} aria-label={`Step ${n} ${arm === 'then' ? 'true' : 'false'} branch`}>
               <span className="lane-tag">{arm === 'then' ? 'true' : 'false'}</span>
-              {item[arm].map(armNode)}
+              {item[arm].map((s, at) => (
+                <Fragment key={s.key}>
+                  {laneGapAt(n, item.key, arm, at)}
+                  {armNode(s)}
+                </Fragment>
+              ))}
+              {laneGapAt(n, item.key, arm, item[arm].length)}
               <AddFunction id={`chart-if${n}-${arm}-add`} label="Add a step" fns={fns} onAdd={(id) => setArm(arm, [...item[arm], newStep(fns, meta.fields, id, meta.options)])} />
             </div>
           ))}
@@ -261,7 +319,7 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
     const n = flatAt(step.key) + 1;
     const { missing, other } = missingInputs(stepErrors(errors, n - 1), fn?.title);
     const isOpen = open === step.key;
-    const moving = dragged && 'from' in dragged && dragged.from === i;
+    const moving = isMoving(step.key);
     return (
       <div className={`node-wrap${isOpen ? ' open' : ''}`}>
         <div
@@ -270,7 +328,7 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
           draggable
           onDragStart={(e) => {
             startDrag(e, step.fn);
-            setDragged({ from: i });
+            setDragged({ key: step.key });
           }}
           onDragEnd={end}
         >
@@ -306,7 +364,7 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
   return (
     <div className={`dnd${dragged ? ' dragging' : ''}`}>
       <section className="panel palette" aria-label="Functions">
-        <div className="muted small">Drag onto an arrow in the flow, or + to add at the end.</div>
+        <div className="muted small">Drag onto an arrow in the flow or into a true / false branch, or + to add at the end.</div>
         <div className="palette-group">
           <div className="palette-head">Logic</div>
           <div
@@ -334,6 +392,13 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
             {group.fns.map(chip)}
           </div>
         ))}
+        {flows.length > 0 && (
+          <div className="palette-group">
+            <div className="palette-head">Saved flows</div>
+            <div className="muted small">Drop one to copy its steps in, then edit them freely.</div>
+            {flows.map(flowChip)}
+          </div>
+        )}
       </section>
       <div className="chart" aria-label="Flow">
         <div className="terminal start">▶ {startLabel(fns, ids, meta.settings.records)}</div>

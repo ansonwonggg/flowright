@@ -1,4 +1,4 @@
-import { comesFromEarlier, flatten, isIf, producedBefore, type Condition, type FlowStep, type FnStep } from '../../../src/flow.ts';
+import { comesFromEarlier, flatten, isIf, producedBefore, type Arm, type Condition, type FlowStep, type FnStep } from '../../../src/flow.ts';
 import { toSpec, toValues, withSelectDefaults, type FormValues, type OptionLists } from '../../../src/forms/engine.ts';
 import type { FormConfig } from '../../../src/forms/types.ts';
 import type { FieldJson, FlowDef, Fn } from '../api.ts';
@@ -189,6 +189,85 @@ export type Dragged = { fn: string } | { if: true } | { from: number };
  */
 export const dropGaps = (ids: string[], dragged: Dragged): boolean[] =>
   Array.from({ length: ids.length + 1 }, (_, gap) => !('from' in dragged) || (gap !== dragged.from && gap !== dragged.from + 1));
+
+/** An IF's arm, by the IF's key. */
+export type Lane = { ifKey: string; arm: Arm };
+
+/** A gap a step can go in: of the main line, or of `lane` when set (0 = before its first step). */
+export type Place = { gap: number; lane?: Lane };
+
+/**
+ * What is being dragged: a function or the IF from the palette, a `copy` of a saved flow's items (fresh
+ * keys, see {@link draftFrom}), or the item or arm step keyed `key`.
+ */
+export type Held = { fn: string } | { if: true } | { copy: DraftItem[] } | { key: string };
+
+const sameLane = (a: Lane | undefined, b: Lane | undefined) => a?.ifKey === b?.ifKey && a?.arm === b?.arm;
+
+const listAt = (items: DraftItem[], lane: Lane | undefined): DraftItem[] | undefined => {
+  if (!lane) return items;
+  const owner = items.find((item) => item.key === lane.ifKey);
+  return owner && isDraftIf(owner) ? owner[lane.arm] : undefined;
+};
+
+const locate = (items: DraftItem[], key: string): { item: DraftItem; index: number; lane?: Lane } | undefined => {
+  const top = items.findIndex((item) => item.key === key);
+  if (top >= 0) return { item: items[top], index: top };
+  for (const owner of items) {
+    if (!isDraftIf(owner)) continue;
+    for (const arm of ['then', 'else'] as const) {
+      const index = owner[arm].findIndex((s) => s.key === key);
+      if (index >= 0) return { item: owner[arm][index], index, lane: { ifKey: owner.key, arm } };
+    }
+  }
+  return undefined;
+};
+
+/**
+ * Whether dropping `held` at `place` changes the flow. An IF never goes into an arm, since arms hold
+ * function steps only; a step dropped on either gap beside itself stays put; an arm of a missing IF takes nothing.
+ */
+export const canDrop = (items: DraftItem[], held: Held, place: Place): boolean => {
+  if (!listAt(items, place.lane)) return false;
+  if ('fn' in held) return true;
+  if ('if' in held) return !place.lane;
+  if ('copy' in held) return held.copy.length > 0 && !(place.lane && held.copy.some(isDraftIf));
+  const from = locate(items, held.key);
+  if (!from) return false;
+  if (place.lane && isDraftIf(from.item)) return false;
+  return !sameLane(from.lane, place.lane) || (place.gap !== from.index && place.gap !== from.index + 1);
+};
+
+const insertAllAt = <T>(list: T[], added: T[], at: number): T[] => {
+  const gap = clamp(at, list.length);
+  return [...list.slice(0, gap), ...added, ...list.slice(gap)];
+};
+
+/**
+ * `items` with `added` put at `place`, in order. Unchanged when `added` is empty, or when it holds an IF
+ * and `place` is an arm, or the arm's IF is missing.
+ */
+export const putAllAt = (items: DraftItem[], added: DraftItem[], place: Place): DraftItem[] => {
+  const { lane } = place;
+  if (!added.length) return items;
+  if (!lane) return insertAllAt(items, added, place.gap);
+  if (added.some(isDraftIf) || !listAt(items, lane)) return items;
+  return updateIf(items, lane.ifKey, (it) => ({ ...it, [lane.arm]: insertAllAt(it[lane.arm], added as DraftStep[], place.gap) }));
+};
+
+/** `items` with `item` put at `place`; unchanged when an IF would go into an arm or the arm's IF is missing. */
+export const putAt = (items: DraftItem[], item: DraftItem, place: Place): DraftItem[] => putAllAt(items, [item], place);
+
+/**
+ * `items` with the item or arm step keyed `key` moved to `place`, counted on the lists before the move;
+ * unchanged when {@link canDrop} says no.
+ */
+export const moveKeyTo = (items: DraftItem[], key: string, place: Place): DraftItem[] => {
+  const from = locate(items, key);
+  if (!from || !canDrop(items, { key }, place)) return items;
+  const gap = sameLane(from.lane, place.lane) && place.gap > from.index ? place.gap - 1 : place.gap;
+  return putAt(removeKey(items, key), from.item, { ...place, gap });
+};
 
 const textOf = (def: unknown, key: 'title' | 'group'): string => {
   const value = def && typeof def === 'object' && !Array.isArray(def) ? (def as Record<string, unknown>)[key] : undefined;

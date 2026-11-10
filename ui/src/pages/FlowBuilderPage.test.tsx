@@ -55,6 +55,15 @@ describe('FlowBuilderPage modes', () => {
     expect(localStorage.getItem('builderMode')).toBe('drag');
   });
 
+  it("Flow chart offers the saved flows, and + copies one's steps into the flow", async () => {
+    savedFlows = [{ file: 'config/flows/er.flow.json', label: 'ER pair', summary: 'Create → Vet', spec: { steps: [{ function: 'create-user' }, { function: 'vet-datamod' }] } }];
+    page();
+    await userEvent.click(mode('Flow chart'));
+    await userEvent.click(screen.getByRole('button', { name: 'Add the steps of ER pair' }));
+    expect(screen.getByLabelText('Step 1 tile')).toHaveTextContent('Create ER User');
+    expect(screen.getByLabelText('Step 2 tile')).toHaveTextContent('Vet');
+  });
+
   it('opens in the remembered mode; an unknown value falls back to Form', () => {
     localStorage.setItem('builderMode', 'drag');
     const { unmount } = page();

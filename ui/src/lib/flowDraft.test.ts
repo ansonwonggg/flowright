@@ -3,6 +3,7 @@ import type { FieldJson } from '../api.ts';
 import { FIELDS, FUNCTIONS } from './fixtures.test-utils.ts';
 import {
   allSteps,
+  canDrop,
   draftFrom,
   dropGaps,
   flatIndexes,
@@ -17,11 +18,16 @@ import {
   formOf,
   inputSource,
   insertAt,
+  moveKeyTo,
   moveTo,
   newStep,
+  putAllAt,
+  putAt,
   placeholderFor,
   updateIf,
   type DraftIf,
+  type DraftItem,
+  type DraftStep,
 } from './flowDraft.ts';
 
 const options = { creators: [{ value: 'ER', label: 'ER' }], userTypes: [{ value: 'Company AP', label: 'Company AP' }] };
@@ -103,6 +109,113 @@ describe('moveTo', () => {
     expect(list).toEqual(['a', 'b', 'c']);
   });
   it('an index out of range: unchanged', () => expect(moveTo(list, 5, 0)).toEqual(list));
+});
+
+describe('placing steps in IF arms', () => {
+  const fnStep = (key: string): DraftStep => ({ key, fn: key, values: {}, forms: {} });
+  const ifOf = (then: string[], otherwise: string[] = []): DraftIf => ({ key: 'if', kind: 'if', cond: { value: 'status', op: 'equals', to: 'X' }, then: then.map(fnStep), else: otherwise.map(fnStep) });
+  const shape = (items: DraftItem[]) => items.map((i) => (isDraftIf(i) ? { [i.key]: { then: i.then.map((s) => s.key), else: i.else.map((s) => s.key) } } : i.key));
+  const items: DraftItem[] = [fnStep('a'), ifOf(['t1', 't2'], ['e1']), fnStep('b')];
+  const then = (gap: number) => ({ gap, lane: { ifKey: 'if', arm: 'then' as const } });
+  const otherwise = (gap: number) => ({ gap, lane: { ifKey: 'if', arm: 'else' as const } });
+
+  describe('canDrop', () => {
+    it('a function from the palette: any gap of the main line or of either arm', () => {
+      for (const place of [{ gap: 0 }, { gap: 3 }, then(0), then(2), otherwise(0), otherwise(1)]) expect(canDrop(items, { fn: 'x' }, place)).toBe(true);
+    });
+    it('an IF from the palette: the main line only, never an arm', () => {
+      expect(canDrop(items, { if: true }, { gap: 1 })).toBe(true);
+      expect(canDrop(items, { if: true }, then(0))).toBe(false);
+      expect(canDrop(items, { if: true }, otherwise(1))).toBe(false);
+    });
+    it('a placed IF: elsewhere on the main line, never into an arm (its own or another)', () => {
+      expect(canDrop(items, { key: 'if' }, { gap: 3 })).toBe(true);
+      expect(canDrop(items, { key: 'if' }, then(1))).toBe(false);
+    });
+    it('a step onto either gap beside itself in its own list: no', () => {
+      expect(canDrop(items, { key: 'a' }, { gap: 0 })).toBe(false);
+      expect(canDrop(items, { key: 'a' }, { gap: 1 })).toBe(false);
+      expect(canDrop(items, { key: 't2' }, then(1))).toBe(false);
+      expect(canDrop(items, { key: 't2' }, then(2))).toBe(false);
+      expect(canDrop(items, { key: 't2' }, then(0))).toBe(true);
+    });
+    it('the same index in another list is a real move', () => {
+      expect(canDrop(items, { key: 'a' }, then(0))).toBe(true);
+      expect(canDrop(items, { key: 't1' }, otherwise(0))).toBe(true);
+      expect(canDrop(items, { key: 't1' }, { gap: 1 })).toBe(true);
+    });
+    it('an unknown key, or an arm of an IF that is not there: no', () => {
+      expect(canDrop(items, { key: 'nope' }, { gap: 0 })).toBe(false);
+      expect(canDrop(items, { fn: 'x' }, { gap: 0, lane: { ifKey: 'nope', arm: 'then' } })).toBe(false);
+      expect(canDrop(items, { fn: 'x' }, { gap: 0, lane: { ifKey: 'a', arm: 'then' } })).toBe(false);
+    });
+  });
+
+  describe('canDrop: a copy of a saved flow', () => {
+    it('anywhere on the main line', () => {
+      expect(canDrop(items, { copy: [fnStep('x'), ifOf(['y'])] }, { gap: 0 })).toBe(true);
+      expect(canDrop(items, { copy: [fnStep('x')] }, { gap: 3 })).toBe(true);
+    });
+    it('into an arm only when it holds no IF', () => {
+      expect(canDrop(items, { copy: [fnStep('x'), fnStep('y')] }, then(1))).toBe(true);
+      expect(canDrop(items, { copy: [fnStep('x'), ifOf(['y'])] }, otherwise(0))).toBe(false);
+    });
+    it('a flow with no steps: nowhere', () => {
+      expect(canDrop(items, { copy: [] }, { gap: 0 })).toBe(false);
+      expect(canDrop(items, { copy: [] }, then(0))).toBe(false);
+    });
+  });
+
+  describe('putAllAt', () => {
+    it('into the main line, in order, IFs and arms kept', () =>
+      expect(shape(putAllAt(items, [fnStep('x'), ifOf(['y'])], { gap: 1 }))).toEqual(['a', 'x', { if: { then: ['y'], else: [] } }, { if: { then: ['t1', 't2'], else: ['e1'] } }, 'b']));
+    it('into an arm, in order', () => expect(shape(putAllAt(items, [fnStep('x'), fnStep('y')], then(1)))[1]).toEqual({ if: { then: ['t1', 'x', 'y', 't2'], else: ['e1'] } }));
+    it('a list holding an IF into an arm, an empty list, or a missing arm: unchanged', () => {
+      expect(putAllAt(items, [fnStep('x'), ifOf([])], then(0))).toBe(items);
+      expect(putAllAt(items, [], { gap: 0 })).toBe(items);
+      expect(putAllAt(items, [fnStep('x')], { gap: 0, lane: { ifKey: 'nope', arm: 'else' } })).toBe(items);
+    });
+    it('a gap out of range is clamped', () => expect(shape(putAllAt(items, [fnStep('x')], { gap: 99 })).at(-1)).toBe('x'));
+  });
+
+  describe('putAt', () => {
+    it('into the main line', () => expect(shape(putAt(items, fnStep('x'), { gap: 1 }))).toEqual(['a', 'x', { if: { then: ['t1', 't2'], else: ['e1'] } }, 'b']));
+    it('into an arm, at its start, middle and end', () => {
+      expect(shape(putAt(items, fnStep('x'), then(0)))[1]).toEqual({ if: { then: ['x', 't1', 't2'], else: ['e1'] } });
+      expect(shape(putAt(items, fnStep('x'), then(1)))[1]).toEqual({ if: { then: ['t1', 'x', 't2'], else: ['e1'] } });
+      expect(shape(putAt(items, fnStep('x'), otherwise(1)))[1]).toEqual({ if: { then: ['t1', 't2'], else: ['e1', 'x'] } });
+    });
+    it('into an empty arm', () => expect(shape(putAt([ifOf([])], fnStep('x'), otherwise(0)))).toEqual([{ if: { then: [], else: ['x'] } }]));
+    it('an IF into an arm, or into an arm that is not there: unchanged', () => {
+      expect(putAt(items, ifOf([]), then(0))).toBe(items);
+      expect(putAt(items, fnStep('x'), { gap: 0, lane: { ifKey: 'nope', arm: 'then' } })).toBe(items);
+    });
+    it('does not mutate the input', () => {
+      putAt(items, fnStep('x'), then(0));
+      expect(shape(items)).toEqual(['a', { if: { then: ['t1', 't2'], else: ['e1'] } }, 'b']);
+    });
+  });
+
+  describe('moveKeyTo', () => {
+    it('main line into an arm', () => expect(shape(moveKeyTo(items, 'a', then(2)))).toEqual([{ if: { then: ['t1', 't2', 'a'], else: ['e1'] } }, 'b']));
+    it('an arm out to the main line', () => expect(shape(moveKeyTo(items, 'e1', { gap: 3 }))).toEqual(['a', { if: { then: ['t1', 't2'], else: [] } }, 'b', 'e1']));
+    it('one arm to the other', () => expect(shape(moveKeyTo(items, 't1', otherwise(0)))[1]).toEqual({ if: { then: ['t2'], else: ['t1', 'e1'] } }));
+    it('within an arm, down and up: lands before the gap it was dropped on', () => {
+      expect(shape(moveKeyTo(items, 't1', then(2)))[1]).toEqual({ if: { then: ['t2', 't1'], else: ['e1'] } });
+      expect(shape(moveKeyTo(items, 't2', then(0)))[1]).toEqual({ if: { then: ['t2', 't1'], else: ['e1'] } });
+    });
+    it('the IF along the main line keeps its arms', () => expect(shape(moveKeyTo(items, 'if', { gap: 0 }))).toEqual([{ if: { then: ['t1', 't2'], else: ['e1'] } }, 'a', 'b']));
+    it('the step keeps its values', () => {
+      const typed: DraftItem[] = [{ ...fnStep('a'), values: { mobile: '91234567' } }, ifOf([])];
+      const moved = moveKeyTo(typed, 'a', then(0))[0] as DraftIf;
+      expect(moved.then[0].values).toEqual({ mobile: '91234567' });
+    });
+    it('a drop canDrop refuses: unchanged', () => {
+      expect(moveKeyTo(items, 'if', then(0))).toBe(items);
+      expect(moveKeyTo(items, 'a', { gap: 1 })).toBe(items);
+      expect(moveKeyTo(items, 'nope', { gap: 0 })).toBe(items);
+    });
+  });
 });
 
 describe('insertAt', () => {
