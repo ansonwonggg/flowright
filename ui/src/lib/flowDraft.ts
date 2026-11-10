@@ -1,7 +1,7 @@
-import { comesFromEarlier, flatten, isIf, producedBefore, type Arm, type Condition, type FlowStep, type FnStep } from '../../../src/flow.ts';
+import { comesFromEarlier, flatten, flowSummary, isIf, producedBefore, type Arm, type Condition, type FlatFn, type FlowStep, type FnStep, type IfStep } from '../../../src/flow.ts';
 import { toSpec, toValues, withSelectDefaults, type FormValues, type OptionLists } from '../../../src/forms/engine.ts';
 import type { FormConfig } from '../../../src/forms/types.ts';
-import type { FieldJson, FlowDef, Fn } from '../api.ts';
+import type { FieldJson, FlowDef, FlowRun, Fn } from '../api.ts';
 
 /**
  * One step as the builder edits it: the function, typed text values by name, and the form values of each
@@ -103,6 +103,32 @@ export const flowOf = (items: DraftItem[], fields: FieldJson[], title?: string, 
     ...(group?.trim() && { group: group.trim() }),
     steps: items.map((item) => (isDraftIf(item) ? ifOf(item) : stepOf(item))),
   };
+};
+
+export const flowOfRun = (run: FlowRun, fns: Fn[], fields: FieldJson[]): FlowDef => {
+  const isSecret = (name: string) => fieldOf(fields, name)?.kind === 'secret';
+  const stepOf = (step: FlatFn): FnStep => {
+    const values = Object.fromEntries(Object.entries(step.values ?? {}).filter(([name]) => !isSecret(name)));
+    return { function: step.function, ...(Object.keys(values).length && { values }) };
+  };
+  const flat = run.steps ?? [];
+  const ifAt = new Map<number, IfStep>();
+  const steps: FlowStep[] = [];
+  flat.forEach((step, i) => {
+    if (isIf(step)) {
+      const made: IfStep = { if: step.if, then: [] };
+      ifAt.set(i, made);
+      steps.push(made);
+      return;
+    }
+    const owner = step.branch && ifAt.get(step.branch.at);
+    if (!owner) return steps.push(stepOf(step));
+    if (step.branch!.arm === 'then') owner.then.push(stepOf(step));
+    else owner.else = [...(owner.else ?? []), stepOf(step)];
+  });
+  const def: FlowDef = { steps };
+  const name = run.name?.trim();
+  return name && name !== flowSummary(fns, def) ? { title: name, ...def } : def;
 };
 
 /**

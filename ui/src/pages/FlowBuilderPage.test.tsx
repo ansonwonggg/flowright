@@ -1,5 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
-import { ApiError } from '../api.ts';
+import { ApiError, type FlowRun } from '../api.ts';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +8,7 @@ import { FlowBuilderPage } from './FlowBuilderPage.tsx';
 
 let savedFlows: { file: string; label: string; summary: string; spec: unknown }[] = [];
 let checkErrors: string[] = [];
+let flowRuns: Record<string, FlowRun> = {};
 const start = { mutateAsync: vi.fn(), isPending: false };
 const save = { mutateAsync: vi.fn(), isPending: false };
 vi.mock('../queries.ts', () => ({
@@ -17,6 +18,8 @@ vi.mock('../queries.ts', () => ({
   useFlowCheck: () => ({ data: { errors: checkErrors, warnings: [] }, isPending: false, isPlaceholderData: false }),
   useStartFlow: () => start,
   useSaveFlow: () => save,
+  useFlowRun: (id: string) =>
+    flowRuns[id] ? { data: flowRuns[id], error: null, isPending: false } : { data: undefined, error: new Error(`No such flow run.`), isPending: false },
 }));
 
 const page = (url = '/flow-builder') =>
@@ -32,6 +35,7 @@ beforeEach(() => {
   localStorage.clear();
   savedFlows = [];
   checkErrors = [];
+  flowRuns = {};
   start.mutateAsync.mockReset();
   save.mutateAsync.mockReset();
 });
@@ -293,5 +297,43 @@ describe('FlowBuilderPage IF in Form mode', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove step 2' }));
     expect(screen.queryByRole('region', { name: 'Step 3' })).toBeNull();
     expect(screen.queryByLabelText('Value')).toBeNull();
+  });
+});
+
+describe('FlowBuilderPage from an earlier flow run', () => {
+  const earlier: FlowRun = {
+    id: '20261105-110000-ffff',
+    name: 'New ER user',
+    startedAt: 0,
+    status: 'failed',
+    values: {},
+    steps: [
+      { function: 'create-user', title: '[Web] Create ER User', status: 'passed', values: { user_spec: { creator: 'ER', userType: 'Company AP', company: 'Acme' } }, runId: 'r1' },
+      { function: 'activate-api', title: '[API] Activate', status: 'failed', values: { mobile: '91234567', password: 'p4ss' }, runId: 'r2' },
+    ],
+  };
+
+  it('opens with its steps, typed values and name, secrets left blank', async () => {
+    flowRuns = { [earlier.id]: earlier };
+    page(`/flow-builder?run=${earlier.id}`);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New ER user');
+    expect(within(screen.getByRole('region', { name: 'Step 1' })).getByLabelText('Company')).toHaveValue('Acme');
+    const step2 = screen.getByRole('region', { name: 'Step 2' });
+    expect(within(step2).getByLabelText(/Mobile/)).toHaveValue('91234567');
+    expect(within(step2).getByLabelText('Password')).toHaveValue('');
+  });
+
+  it('runs as a new flow under the same name', async () => {
+    flowRuns = { [earlier.id]: earlier };
+    start.mutateAsync.mockResolvedValue({ id: 'new' });
+    page(`/flow-builder?run=${earlier.id}`);
+    await userEvent.click(screen.getByRole('button', { name: 'Run the flow' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start' }));
+    expect(start.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ name: 'New ER user' }));
+  });
+
+  it('a run it cannot load says so', () => {
+    page('/flow-builder?run=20261105-110000-zzzz');
+    expect(screen.getByText('No such flow run.')).toBeInTheDocument();
   });
 });

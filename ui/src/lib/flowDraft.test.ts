@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FieldJson } from '../api.ts';
+import type { FieldJson, FlowRun, FlowRunStep } from '../api.ts';
 import { FIELDS, FUNCTIONS } from './fixtures.test-utils.ts';
 import {
   allSteps,
@@ -8,6 +8,7 @@ import {
   dropGaps,
   flatIndexes,
   flowOf,
+  flowOfRun,
   groupOf,
   isDraftIf,
   newIf,
@@ -329,4 +330,71 @@ describe('IF items', () => {
   });
 
   it('dropGaps: a dragged IF from the palette may drop in any gap', () => expect(dropGaps(['a', 'b'], { if: true })).toEqual([true, true, true]));
+});
+
+describe('flowOfRun', () => {
+  const ran = (steps: FlowRunStep[], name = 'New ER user'): FlowRun => ({ id: 'f', name, startedAt: 0, status: 'passed', values: {}, steps });
+  const done = { status: 'passed' as const, runId: 'r', input: { x: '1' }, output: { y: '2' } };
+
+  it('a linear run gives its functions and typed values back, nothing the run added', () =>
+    expect(
+      flowOfRun(
+        ran([
+          { function: 'create-user', title: 'Create', values: { user_spec: { company: 'Acme' } }, ...done },
+          { function: 'vet-datamod', title: 'Vet', ...done },
+        ]),
+        FUNCTIONS,
+        FIELDS,
+      ),
+    ).toEqual({ title: 'New ER user', steps: [{ function: 'create-user', values: { user_spec: { company: 'Acme' } } }, { function: 'vet-datamod' }] }));
+
+  it('an IF gets its arms back, each step in the arm it sat in', () =>
+    expect(
+      flowOfRun(
+        ran([
+          { function: 'vet-datamod', title: 'Vet', ...done },
+          { if: { value: 'status', equals: 'SUCCEED' }, title: 'If', status: 'passed', taken: 'then', input: { status: 'SUCCEED' } },
+          { function: 'activate-api', title: 'Activate', branch: { at: 1, arm: 'then' }, ...done },
+          { function: 'create-user', title: 'Create', branch: { at: 1, arm: 'else' }, status: 'skipped' },
+          { function: 'view-permissions', title: 'View', status: 'waiting' },
+        ]),
+        FUNCTIONS,
+        FIELDS,
+      ).steps,
+    ).toEqual([
+      { function: 'vet-datamod' },
+      { if: { value: 'status', equals: 'SUCCEED' }, then: [{ function: 'activate-api' }], else: [{ function: 'create-user' }] },
+      { function: 'view-permissions' },
+    ]));
+
+  it('an IF with an empty false arm has no else', () =>
+    expect(
+      flowOfRun(
+        ran([
+          { function: 'vet-datamod', title: 'Vet', ...done },
+          { if: { value: 'status' }, title: 'If', status: 'waiting' },
+          { function: 'activate-api', title: 'Activate', branch: { at: 1, arm: 'then' }, status: 'waiting' },
+        ]),
+        FUNCTIONS,
+        FIELDS,
+      ).steps[1],
+    ).toEqual({ if: { value: 'status' }, then: [{ function: 'activate-api' }] }));
+
+  it('a step whose branch points at no IF stays where it was, at the top', () =>
+    expect(flowOfRun(ran([{ function: 'vet-datamod', title: 'Vet', branch: { at: 5, arm: 'then' }, status: 'waiting' }]), FUNCTIONS, FIELDS).steps).toEqual([{ function: 'vet-datamod' }]));
+
+  it('drops secret values, so a rerun asks for them again; other values stay', () =>
+    expect(flowOfRun(ran([{ function: 'activate-api', title: 'A', values: { password: 'p4ss', username: 'etoe.1' }, status: 'waiting' }]), FUNCTIONS, FIELDS).steps).toEqual([
+      { function: 'activate-api', values: { username: 'etoe.1' } },
+    ]));
+
+  it('a step left with no values has no values key', () =>
+    expect(flowOfRun(ran([{ function: 'activate-api', title: 'A', values: { password: 'p4ss' }, status: 'waiting' }]), FUNCTIONS, FIELDS).steps).toEqual([{ function: 'activate-api' }]));
+
+  it('no title when the run was only named after its steps', () =>
+    expect(flowOfRun(ran([{ function: 'vet-datamod', title: 'Vet', status: 'waiting' }], '[Admin] Vet'), FUNCTIONS, FIELDS)).toEqual({ steps: [{ function: 'vet-datamod' }] }));
+
+  it('a blank name gives no title', () => expect(flowOfRun(ran([], '  '), FUNCTIONS, FIELDS)).toEqual({ steps: [] }));
+
+  it('a run with no steps list gives an empty flow', () => expect(flowOfRun({ ...ran([]), steps: undefined } as unknown as FlowRun, FUNCTIONS, FIELDS).steps).toEqual([]));
 });

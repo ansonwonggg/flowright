@@ -6,12 +6,12 @@ import { RunBar } from '../components/RunBar.tsx';
 import { fileNameOf, slugify } from '../lib/flowChart.ts';
 import { flatten, flowSummary, isIf, stepTitle } from '../../../src/flow.ts';
 import { foldMissing, stepErrors } from '../lib/flowChart.ts';
-import { draftFrom, flatIndexes, flowOf, groupOf, isDraftIf, newIf, newStep, removeKey, replaceStep, titleOf, type DraftItem } from '../lib/flowDraft.ts';
+import { draftFrom, flatIndexes, flowOf, flowOfRun, groupOf, isDraftIf, newIf, newStep, removeKey, replaceStep, titleOf, type DraftItem } from '../lib/flowDraft.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
 import { DragSteps } from './DragSteps.tsx';
 import { AddFunction, IfCard } from './IfBlock.tsx';
 import { StepCard } from './StepCard.tsx';
-import { useFlowCheck, useLive, useMeta, usePresets, useSaveFlow, useStartFlow } from '../queries.ts';
+import { useFlowCheck, useFlowRun, useLive, useMeta, usePresets, useSaveFlow, useStartFlow } from '../queries.ts';
 
 type BuilderMode = 'form' | 'drag';
 
@@ -213,12 +213,22 @@ const FlowBuilder = ({ meta, initial, flows }: { meta: Meta; initial?: Preset; f
   );
 };
 
+const FromFlowRun = ({ id, meta, flows }: { id: string; meta: Meta; flows: Preset[] }) => {
+  const { data: run, error, isPending } = useFlowRun(id);
+  if (error) return <div className="empty">{error.message}</div>;
+  if (isPending) return <div className="empty">Loading…</div>;
+  const spec = flowOfRun(run, meta.functions, meta.fields);
+  return <FlowBuilder key={`run:${id}`} meta={meta} initial={{ file: '', label: run.name, summary: '', spec }} flows={flows} />;
+};
+
 export const FlowBuilderPage = () => {
   const { data: meta } = useMeta();
   const { data: presets } = usePresets();
   const [params] = useSearchParams();
   const wanted = params.get('preset');
+  const runId = params.get('run');
   if (!meta || !presets) return <div className="empty">Loading…</div>;
+  if (runId) return <FromFlowRun id={runId} meta={meta} flows={presets.flows} />;
   const preset = wanted ? presets.flows.find((p) => p.file === wanted) : undefined;
   if (wanted && !preset) return <div className="empty">No saved flow {wanted}.</div>;
   return <FlowBuilder key={wanted ?? 'new'} meta={meta} initial={preset} flows={presets.flows} />;
