@@ -11,6 +11,6 @@ export { BUILT_IN_FAILURES, classifyFailure, shortError, stripAnsi, type Failure
 export { FLOW_RUNS_DIR, listFlowRuns, readFlowRun, readOutput, writeFlowRun } from './flowRuns.ts';
 export * from './history.ts';
 export { isStep, StepError, stepMaker, stepMeta, type DefineStep, type Step, type StepContext } from './step.ts';
-export { changedRecords, describeRecord, kindLabel, listRecordViews, nextForRecord, recordDetails, snapshotRecords, stageOf, type RecordSnapshot, type RecordView } from './recordView.ts';
+export { changedRecords, describeRecord, kindLabel, functionsOn, listRecordViews, recordDetails, snapshotRecords, stageOf, type RecordSnapshot, type RecordView } from './recordView.ts';
 export { DEFAULT_SETTINGS, type AppContext, type AppHooks, type KitSettings, type Option, type Preset, type RecordKind } from './settings.ts';
 export { listPresets } from './app/presets.ts';

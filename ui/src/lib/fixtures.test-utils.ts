@@ -90,6 +90,6 @@ export const record = (over: Partial<RecordRow> = {}): RecordRow => ({
     ['Password', 'pw'],
   ],
   history: ['create-user'],
-  next: [{ id: 'vet-datamod', title: '[Admin] Vet' }],
+  functions: [{ id: 'vet-datamod', title: '[Admin] Vet' }],
   ...over,
 });

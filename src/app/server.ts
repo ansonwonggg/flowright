@@ -11,7 +11,7 @@ import { metaOf, type FunctionDef, type FunctionMeta } from '../fn.ts';
 import { hasReport, listRuns, newRunId, readRun, RUN_ID, RUN_ID_ENV, runDir, shownStatus, writeRun, type RunRecord } from '../history.ts';
 import { INPUT_ENV, OUTPUT_ENV, type Values } from '../io.ts';
 import { readRecord, RECORDS_DIR } from '../records.ts';
-import { describeRecord, listRecordViews, nextForRecord, recordDetails, type RecordView } from '../recordView.ts';
+import { describeRecord, functionsOn, listRecordViews, recordDetails, type RecordView } from '../recordView.ts';
 import type { AppContext, Option, Preset } from '../settings.ts';
 import { localEnv, missingEnv, withoutEnv } from './env.ts';
 import { cleanFlow, filledInputs, inputProblems, presetPath, summarize } from './inputs.ts';
@@ -64,7 +64,7 @@ const recordJson = (r: RecordView) => ({
   values: r.values,
   details: recordDetails(r, MANIFEST.fields),
   history: r.history.map((h) => h.function),
-  next: nextForRecord(r, METAS).map((f) => ({ id: f.id, title: f.title })),
+  functions: functionsOn(r.kind, METAS).map((f) => ({ id: f.id, title: f.title })),
 });
 
 const envMissing = (fn: FunctionMeta, values: Values): string[] => missingEnv(fn, values, FIELDS, localEnv(ROOT));

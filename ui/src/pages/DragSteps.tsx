@@ -41,7 +41,7 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
   const [open, setOpen] = useState<string | null>(null);
   const fns = meta.functions;
   const ids = steps.map((s) => s.fn);
-  const gaps = dragged ? dropGaps(fns, ids, dragged) : [];
+  const gaps = dragged ? dropGaps(ids, dragged) : [];
   const fnOf = (id: string) => fns.find((f) => f.id === id);
   const gives = flowGives(fns, ids);
 
@@ -95,35 +95,31 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
     );
   };
 
-  const chip = (f: Fn) => {
-    const fits = dropGaps(fns, ids, { fn: f.id });
-    const fitsAny = fits.some(Boolean);
-    return (
-      <div
-        key={f.id}
-        className={`fn-chip${toneClass(f.title)}${fitsAny ? '' : ' off'}`}
-        draggable={fitsAny}
-        title={fitsAny ? f.detail : "Can't go anywhere in this flow"}
-        onDragStart={(e) => {
-          startDrag(e, f.id);
-          setDragged({ fn: f.id });
-        }}
-        onDragEnd={end}
-      >
-        <span className="chip-title">
-          <Tag title={f.title} />
-        </span>
-        <button type="button" className="btn small" aria-label={`Add ${f.title}`} disabled={!fits[ids.length]} onClick={() => add(f.id, ids.length)}>
-          +
-        </button>
-      </div>
-    );
-  };
+  const chip = (f: Fn) => (
+    <div
+      key={f.id}
+      className={`fn-chip${toneClass(f.title)}`}
+      draggable
+      title={f.detail}
+      onDragStart={(e) => {
+        startDrag(e, f.id);
+        setDragged({ fn: f.id });
+      }}
+      onDragEnd={end}
+    >
+      <span className="chip-title">
+        <Tag title={f.title} />
+      </span>
+      <button type="button" className="btn small" aria-label={`Add ${f.title}`} onClick={() => add(f.id, ids.length)}>
+        +
+      </button>
+    </div>
+  );
 
   const node = (step: DraftStep, i: number) => {
     const fn = fnOf(step.fn);
     const title = fn?.title ?? `Unknown function "${step.fn}"`;
-    const moves = dropGaps(fns, ids, { from: i });
+    const moves = dropGaps(ids, { from: i });
     const problems = stepErrors(errors, i);
     const isOpen = open === step.key;
     const moving = dragged && 'from' in dragged && dragged.from === i;

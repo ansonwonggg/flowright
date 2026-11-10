@@ -234,7 +234,6 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .live-pill:hover { text-decoration: none; }
 .chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); white-space: nowrap; }
 .chip.done { background: var(--ok-bg); color: var(--ok); }
-.chip.todo { background: var(--warn-bg); color: var(--warn); }
 .bad-chip { background: var(--bad-bg); color: var(--bad); }
 .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); letter-spacing: .04em; }
 .step-no { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 750; margin-right: 6px; vertical-align: 1px; }
@@ -343,7 +342,6 @@ section.fn td:first-child, section.fn th:first-child { padding-left: 18px; }
 .palette-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-top: 2px; }
 .fn-chip { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 8px 8px 10px; border: 1px solid var(--line); border-left: 3px solid var(--tone, var(--line)); border-radius: 10px; background: var(--raised); cursor: grab; font-weight: 550; transition: transform .12s, box-shadow .12s, border-color .12s; }
 .fn-chip:hover { border-color: var(--tone, var(--accent)); transform: translateX(2px); box-shadow: 0 2px 8px rgba(0, 0, 0, .08); }
-.fn-chip.off { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
 .fn-chip .chip-title { min-width: 0; }
 .fn-chip .btn, .node .btn { padding: 2px 8px; }
 .chart { display: flex; flex-direction: column; align-items: center; padding: 24px 18px 28px; border: 1px solid var(--line); border-radius: 18px; background-color: var(--panel); background-image: radial-gradient(color-mix(in srgb, var(--accent) 22%, var(--line)) 1.2px, transparent 1.2px); background-size: 20px 20px; min-width: 0; box-shadow: var(--shadow); }

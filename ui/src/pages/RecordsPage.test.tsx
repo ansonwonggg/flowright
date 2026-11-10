@@ -10,7 +10,7 @@ import { FunctionSection } from './RecordsPage.tsx';
 
 const fn = FUNCTIONS[0];
 const userRun = (over = {}) => run({ project: 'create-user', title: fn.title, input: { user_spec: '{"company":"PCCW"}', view_as: 'G1' }, summary: 'Company AP for PCCW, by ER', ...over });
-const current = record({ stage: 'vet-datamod', stageLabel: 'Vet · SUCCEED', next: [{ id: 'activate-api', title: '[API] Activate' }] });
+const current = record({ stage: 'vet-datamod', stageLabel: 'Vet · SUCCEED', functions: [{ id: 'vet-datamod', title: '[Admin] Vet' }, { id: 'activate-api', title: '[API] Activate' }] });
 const made = { kind: 'er-user', ref: 'DMD1', stage: 'create-user', stageLabel: 'Create · SUBMITTED', summary: 'DMD1 Company AP @ PCCW' };
 
 const Harness = ({ group }: { group: FunctionGroup }) => {
@@ -36,16 +36,17 @@ describe('FunctionSection', () => {
     expect(screen.getByText('✓ 1')).toBeInTheDocument();
     expect(screen.getByText('✗ 1')).toBeInTheDocument();
     expect(screen.getByRole('row', { name: /DMD1 Company AP @ PCCW Vet · SUCCEED passed/ })).toBeInTheDocument();
-    expect(screen.getByText('Vet · SUCCEED')).toHaveClass('todo');
+    expect(screen.getByText('Vet · SUCCEED')).toHaveClass('chip');
     expect(screen.getByRole('row', { name: /— nothing saved failed/ })).toBeInTheDocument();
   });
 
-  it('a record with nothing left to run shows its stage as done', () => {
-    render(<Harness group={{ fn, passed: 1, failed: 0, rows: [{ key: 'a:DMD1', run: userRun(), made, current: { ...current, next: [] } }] }} />);
-    expect(screen.getByText('Vet · SUCCEED')).toHaveClass('done');
+  it('the stage is shown as it is, never judged done or to do', () => {
+    render(<Harness group={{ fn, passed: 1, failed: 0, rows: [{ key: 'a:DMD1', run: userRun(), made, current: { ...current, functions: [] } }] }} />);
+    expect(screen.getByText('Vet · SUCCEED')).not.toHaveClass('done');
+    expect(screen.getByText('Vet · SUCCEED')).not.toHaveClass('todo');
   });
 
-  it('a row opens to its inputs, output with copy and next, and the log', async () => {
+  it('a row opens to its inputs, output with copy, a run link per function that takes it, and the log', async () => {
     stubLog(['Running create-user', '  ✓ 1 CREATE']);
     render(<Harness group={{ fn, passed: 1, failed: 0, rows: [{ key: 'a:DMD1', run: userRun(), made, current }] }} />);
     await userEvent.click(screen.getByRole('row', { name: /DMD1/ }));
@@ -55,7 +56,8 @@ describe('FunctionSection', () => {
     expect(screen.getByText('etoe.abc')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Copy' })).toHaveLength(2);
     expect(screen.getByText(/After this run it was Create · SUBMITTED; it has moved on since/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Next: [API] Activate →' })).toHaveAttribute('href', '/fn/activate-api?ref=DMD1');
+    expect(screen.getByRole('link', { name: 'Run: [Admin] Vet →' })).toHaveAttribute('href', '/fn/vet-datamod?ref=DMD1');
+    expect(screen.getByRole('link', { name: 'Run: [API] Activate →' })).toHaveAttribute('href', '/fn/activate-api?ref=DMD1');
     expect(screen.getByRole('link', { name: /Playwright report/ })).toHaveAttribute('href', '/runs/20261105-120000-aaaa/report/');
     expect(screen.getByRole('link', { name: 'Open run →' })).toHaveAttribute('href', '/run/20261105-120000-aaaa');
     expect(await screen.findByText(/Running create-user/)).toBeInTheDocument();

@@ -24,7 +24,8 @@ export type RecordRow = {
   values: Record<string, string>;
   details: [string, string][];
   history: string[];
-  next: { id: string; title: string }[];
+  /** Functions that take this kind of record by its key; see `functionsOn`. */
+  functions: { id: string; title: string }[];
 };
 
 export type ShownStatus = RunRecord['status'] | 'stopping';

@@ -8,7 +8,7 @@ import type { FunctionMeta } from './fn.ts';
 import { HISTORY_DIR, RUN_ID, RUN_ID_ENV, writeRun, type RunRecord, type RunStatus } from './history.ts';
 import { INPUT_ENV, parseValues } from './io.ts';
 import { currentManifest } from './playwright.ts';
-import { changedRecords, describeRecord, kindLabel, listRecordViews, nextForRecord, snapshotRecords, type RecordSnapshot, type RecordView } from './recordView.ts';
+import { changedRecords, describeRecord, kindLabel, functionsOn, listRecordViews, snapshotRecords, type RecordSnapshot, type RecordView } from './recordView.ts';
 import { DEFAULT_SETTINGS, type KitSettings } from './settings.ts';
 
 const color = (code: number) => (text: string) => (process.stdout.isTTY ? `\u001b[${code}m${text}\u001b[0m` : text);
@@ -40,10 +40,10 @@ export const resumeLine = (settings: Pick<KitSettings, 'command' | 'unsetEnv'>, 
     .filter(Boolean)
     .join(' ');
 
-/** Lines for one touched record: what it is, then how to take it further. */
+/** Lines for one touched record: what it is, then how to run each function that takes it. */
 export const recordLines = (record: RecordView, fns: FunctionMeta[], settings: KitSettings): string[] => [
   `  ${kindLabel(record.kind, settings.records).padEnd(7)}  ${describeRecord(record, settings.records)}`,
-  ...nextForRecord(record, fns).map((f) => dim(`           next: ${f.title.padEnd(42)} ${resumeLine(settings, f, record.key)}`)),
+  ...functionsOn(record.kind, fns).map((f) => dim(`           run:  ${f.title.padEnd(42)} ${resumeLine(settings, f, record.key)}`)),
 ];
 
 /**
@@ -73,7 +73,7 @@ const manifest = (): Pick<Manifest, 'functions' | 'fields' | 'settings'> => {
  * `@ansonwonggg/flowright/playwright`, which also sets the run id and the HTML report folder.
  *
  * - Terminal: each named step with its result, a "still on" line after 30 s of silence, then the records
- *   the run made or changed under `out/records/`, with the functions to run on them next, and on failure
+ *   the run made or changed under `out/records/`, with how to run each function that takes them, and on failure
  *   what kind it was (the kit's `failures` first) and how to resume.
  * - History: when `FLOWKIT_RUN_ID` is set and the run includes a function, writes
  *   `out/runs/<id>/run.json` when the first test starts and at the end, and `log.txt` at the end. Runs

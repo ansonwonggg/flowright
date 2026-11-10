@@ -9,7 +9,7 @@ import { cleanValues, type Values } from './values.ts';
 export type FlowStep = { function: string; values?: Record<string, unknown> };
 
 /**
- * A `*.flow.json` file: functions run one after another on one record. `group` is the heading the app
+ * A `*.flow.json` file: functions run one after another, each output passed on to later steps by name. `group` is the heading the app
  * lists the flow under; flows without one go under "Other", or show with no headings when none has one.
  */
 export type FlowDef = { title?: string; group?: string; steps: FlowStep[] };
@@ -44,16 +44,6 @@ export const producedBefore = (fns: FunctionMeta[], steps: FlowStep[], index: nu
 };
 
 /**
- * Functions that can come next. An empty flow can start with any function; after that, only functions
- * on the same kind of record that don't start a new one.
- */
-export const nextFunctions = (fns: FunctionMeta[], steps: FlowStep[]): FunctionMeta[] => {
-  const first = find(fns, steps[0]?.function);
-  if (!first) return fns;
-  return fns.filter((f) => !f.starts && f.record === first.record);
-};
-
-/**
  * Whether step `index` can get input `name` without typing it: an earlier step gives it, or the record
  * could hold it (the function has a record, its key is typed or given earlier, and some function on that
  * kind of record gives `name`).
@@ -70,10 +60,7 @@ const stepProblems = (fns: FunctionMeta[], fields: Fields, steps: FlowStep[], in
   const where = `Step ${index + 1}`;
   const fn = find(fns, step?.function);
   if (!fn) return [`${where}: unknown function "${step?.function}"`];
-  const first = find(fns, steps[0].function);
   const problems: string[] = [];
-  if (index > 0 && fn.starts) problems.push(`${where}: ${fn.title} makes a new record, so it can only be the first step`);
-  if (index > 0 && first && fn.record !== first.record) problems.push(`${where}: ${fn.title} works on ${fn.record ?? 'no record'}; this flow works on ${first.record ?? 'no record'}`);
   const values = typed(step);
   const given = comesFromEarlier(fns, steps, index);
   for (const [name, need] of Object.entries(fn.inputs))

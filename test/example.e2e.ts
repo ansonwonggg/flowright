@@ -42,11 +42,11 @@ describe('the example repo, in a real browser', { timeout: 300_000 }, () => {
     assert.match(out, new RegExp(`ER user  ${ref} etoe\\.\\S+ · \\[Web\\] Activate`));
   });
 
-  it('the reporter keeps each function run in history and says what can run next', () => {
+  it('the reporter keeps each function run in history and says how to run each function on the record', () => {
     const before = new Set(readdirSync(path.join(EXAMPLE, 'out/runs')));
     const { out, run } = runFlow('example/config/flows/new-er-user.flow.json');
     const ref = run.steps[0].output!.reference_no;
-    assert.match(out, new RegExp(`next: .*node src/cli.ts run example vet-er-user reference_no=${ref}`));
+    assert.match(out, new RegExp(`run: .*node src/cli.ts run example vet-er-user reference_no=${ref}`));
     const added = readdirSync(path.join(EXAMPLE, 'out/runs')).filter((id) => !before.has(id));
     const kept = added.map((id) => JSON.parse(readFileSync(path.join(EXAMPLE, 'out/runs', id, 'run.json'), 'utf8')));
     assert.deepEqual(kept.map((r) => r.project).sort(), ['activate-er-user-web', 'create-er-user', 'vet-er-user']);
@@ -112,6 +112,6 @@ describe('the example repo, in a real browser', { timeout: 300_000 }, () => {
     const result = cli('run', 'example', file);
     assert.equal(result.status, 1);
     assert.match(result.stdout, /reference_no "X" doesn't match/);
-    assert.match(result.stdout, /Step 2: \[Web\] Member Registration with Activation makes a new record, so it can only be the first step/);
+    assert.doesNotMatch(result.stdout, /Step 2/, 'any function may come in any order');
   });
 });

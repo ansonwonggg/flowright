@@ -75,7 +75,7 @@ export default defineFunction({
   id: 'activate-er-user-web',               // must equal the file name
   title: '[Web] Activate ER User Account',
   group: 'ER user',                         // optional: the heading the app lists it under
-  record: 'er-user',                        // a flow keeps to one kind of record
+  record: 'er-user',                        // optional: its outputs are saved to that record, found by its key
   test,                                     // optional: a Playwright test with your fixtures
   setup: ['admin-login'],                   // optional: Playwright projects to run first
   use: { viewport: { width: 1920, height: 1080 } }, // optional, per function
@@ -172,16 +172,16 @@ A select may give `labels` for its options.
 `--data <dir>` for records, history, presets and `.env.local` somewhere else). It builds its page with
 Vite on the first start and after flowkit changes.
 
-- **Functions:** saved flows, and every function with what it can start from (presets, or the records
-  ready for it). A function page draws JSON inputs as forms, loads and saves presets, picks a record or
-  takes a typed key, fills blank inputs from the record and says which, and checks inputs and `.env.local`
-  before a run.
-- **Flows:** a builder that offers only functions that fit and shows where each blank input will come
-  from, and a page per flow run. Flow runs from the CLI appear here too (`out/flow-runs/`). The builder
+- **Functions:** saved flows, and every function with its saved presets. A function page shows one set of
+  inputs: JSON inputs as forms (load and save presets), the rest as fields, the record key among them.
+  When the key names a saved record, blank inputs are filled from it, and the page says which. It checks
+  inputs and `.env.local` before a run. flowkit doesn't judge which record a function should run on, or
+  in what order functions should run: that is the tester's call.
+- **Records:** each record with a **Run:** link for every function that takes its kind, the key filled in.
+- **Flows:** a builder that offers every function and shows where each blank input will come from, and a page per flow run. Flow runs from the CLI appear here too (`out/flow-runs/`). The builder
   has two modes, remembered per browser: **Form** adds steps from a list at the end; **Flow chart** draws
-  the flow from Start to End, with a palette grouped by kind of record. Drag a function onto an arrow, or
-  a step to a new place; only the arrows where the flow stays in order open (one record-making step,
-  first; the rest on the same kind of record). Each arrow shows the values handed down to the next step,
+  the flow from Start to End, with a palette grouped by kind of record. Drag a function onto any arrow, or
+  a step to a new place. Each arrow shows the values handed down to the next step,
   and each step shows its own check errors. A leading `[tag]` in a function title (e.g. `[Web]`) becomes
   a coloured badge. A saved flow shows by its `title`; the builder keeps the title and the file name apart
   (the file name defaults to the title in lower case).
@@ -224,7 +224,7 @@ imports break. `flowkitReporters` picks the right entry.
   comes from the one shared kit, and it uses only registry names. A function on a record outputs the
   record's key when it starts one, and takes the key as an input otherwise.
 - A `*.step.ts` exports only `defineStep` results. A helper belongs in another file.
-- A `*.flow.json` is valid: known functions, a starting function only first, one kind of record, every
+- A `*.flow.json` is valid: known functions, every
   required input typed, given by an earlier step or available from the record, typed values matching
   their rules (a JSON value through its validator), no secrets. Flows are strictly linear.
 

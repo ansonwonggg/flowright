@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CopyButton, NextLinks, StageChip, StatusPill } from '../components/bits.tsx';
+import { CopyButton, RunLinks, StageChip, StatusPill } from '../components/bits.tsx';
 import { FnTitle } from '../components/FnTitle.tsx';
 import { groupByFunction, type FunctionGroup, type FunctionRow } from '../lib/byFunction.ts';
 import { when, who } from '../lib/format.ts';
@@ -33,7 +33,7 @@ const Output = ({ row: { made, current } }: { row: FunctionRow }) => {
         ))}
       </div>
       {made && made.stage !== current.stage && <div className="hint">After this run it was {made.stageLabel}; it has moved on since.</div>}
-      <NextLinks record={current} />
+      <RunLinks record={current} />
     </>
   );
 };
@@ -123,7 +123,7 @@ export const FunctionSection = ({ group, open, onToggle }: { group: FunctionGrou
                     {row.current && (
                       <>
                         {' '}
-                        <StageChip done={!row.current.next.length} label={row.current.stageLabel} />
+                        <StageChip label={row.current.stageLabel} />
                       </>
                     )}
                   </td>

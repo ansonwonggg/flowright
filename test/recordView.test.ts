@@ -5,7 +5,7 @@ import { describe, it as test } from 'node:test';
 import { expect } from './expect.ts';
 import type { FieldJson } from '../src/fields.ts';
 import { saveRecord, type RecordFile } from '../src/records.ts';
-import { changedRecords, describeRecord, kindLabel, listRecordViews, nextForRecord, recordDetails, snapshotRecords, stageOf, type RecordView } from '../src/recordView.ts';
+import { changedRecords, describeRecord, kindLabel, functionsOn, listRecordViews, recordDetails, snapshotRecords, stageOf, type RecordView } from '../src/recordView.ts';
 import type { RecordKind } from '../src/settings.ts';
 
 const FNS = [
@@ -99,18 +99,13 @@ describe('recordDetails', () => {
   test('no values: only the stage', () => expect(recordDetails(rec({ values: null as never }), fields)).toEqual([['Stage', 'new']]));
 });
 
-describe('nextForRecord', () => {
+describe('functionsOn', () => {
   const ids = (list: { id: string }[]) => list.map((f) => f.id);
-  test('same kind, not starting, not run yet', () => expect(ids(nextForRecord(rec({ history: [at('create-user')] }), FNS))).toEqual(['vet-datamod', 'activate-api']));
-  test('drops what already ran', () => expect(ids(nextForRecord(rec({ history: [at('create-user'), at('vet-datamod')] }), FNS))).toEqual(['activate-api']));
-  test('other kinds', () => expect(ids(nextForRecord(rec({ kind: 'member' }), FNS))).toEqual(['member-enrol']));
-  test('missing history and values count as none', () => expect(nextForRecord(rec({ history: undefined as never, values: undefined as never }), FNS)).toHaveLength(2));
-  test('drops a function whose own outputs the record already holds, e.g. another activation gave the login', () =>
-    expect(ids(nextForRecord(rec({ history: [at('create-user'), at('activate-web')], values: { username: 'u', password: 'p' } }), FNS))).toEqual(['vet-datamod']));
-  test('holding only some of them, or only the key and status, keeps it', () => {
-    expect(ids(nextForRecord(rec({ values: { username: 'u' } }), FNS))).toEqual(['vet-datamod', 'activate-api']);
-    expect(ids(nextForRecord(rec({ values: { reference_no: 'DMD1', status: 'SUCCEED' } }), FNS))).toEqual(['vet-datamod', 'activate-api']);
-  });
+  test('every function on the kind that does not make a new record, in the order given', () => expect(ids(functionsOn('er-user', FNS))).toEqual(['vet-datamod', 'activate-api']));
+  test('other kinds', () => expect(ids(functionsOn('member', FNS))).toEqual(['member-enrol']));
+  test('a kind no function takes', () => expect(functionsOn('company', FNS)).toEqual([]));
+  test('only starting functions on the kind: none', () => expect(functionsOn('er-user', FNS.slice(0, 1))).toEqual([]));
+  test('no functions', () => expect(functionsOn('er-user', [])).toEqual([]));
 });
 
 describe('snapshotRecords / changedRecords', () => {

@@ -12,7 +12,7 @@ export const StatusPill = ({ status, testId }: { status: ShownStatus; testId?: s
 );
 
 /** A record stage as a chip: green when no function is left to run on it, amber otherwise. */
-export const StageChip = ({ done, label }: { done: boolean; label: string }) => <span className={`chip ${done ? 'done' : 'todo'}`}>{label}</span>;
+export const StageChip = ({ label }: { label: string }) => <span className="chip">{label}</span>;
 
 /** A record kind in words, from the kit's settings; the kind itself when there is no label or no meta yet. */
 export const kindLabel = (kind: string, meta: Pick<Meta, 'settings'> | undefined): string => meta?.settings.records[kind]?.label ?? kind;
@@ -37,20 +37,20 @@ export const CopyButton = ({ text, label = 'Copy' }: { text: string; label?: str
   );
 };
 
-/** The "Next: <function> →" links for a record; nothing when every function has run on it. */
-export const NextLinks = ({ record }: { record: Pick<RecordRow, 'key' | 'next'> }) =>
-  record.next.length ? (
+/** A "Run: <function> →" link for each function that takes the record, its key filled in; nothing when none does. */
+export const RunLinks = ({ record }: { record: Pick<RecordRow, 'key' | 'functions'> }) =>
+  record.functions.length ? (
     <div className="next">
-      {record.next.map((n) => (
-        <Link key={n.id} className="btn small" to={`/fn/${n.id}?ref=${encodeURIComponent(record.key)}`}>
-          Next: {n.title} →
+      {record.functions.map((f) => (
+        <Link key={f.id} className="btn small" to={`/fn/${f.id}?ref=${encodeURIComponent(record.key)}`}>
+          Run: {f.title} →
         </Link>
       ))}
     </div>
   ) : null;
 
 /**
- * A record a run made or changed, with its login (copyable) and next stages. `full` is its current state,
+ * A record a run made or changed, with its login (copyable) and the functions that take it. `full` is its current state,
  * when known; `meta` names its kind.
  */
 export const RecordCard = ({ made, full, meta }: { made: { kind: string; ref: string; stage: string; stageLabel: string; summary: string }; full?: RecordRow; meta?: Pick<Meta, 'settings'> }) => {
@@ -60,7 +60,7 @@ export const RecordCard = ({ made, full, meta }: { made: { kind: string; ref: st
       <div className="top">
         <span className="chip">{kindLabel(made.kind, meta)}</span>
         <span className="mono strong">{made.ref}</span>
-        <StageChip done={full ? !full.next.length : false} label={full?.stageLabel ?? made.stageLabel} />
+        <StageChip label={full?.stageLabel ?? made.stageLabel} />
         <CopyButton text={made.ref} label="Copy ref" />
       </div>
       <div className="muted gap-top">{who(made.summary, made.ref)}</div>
@@ -69,7 +69,7 @@ export const RecordCard = ({ made, full, meta }: { made: { kind: string; ref: st
           <span className="muted">{k}</span> <span className="mono">{v}</span> <CopyButton text={v} />
         </div>
       ))}
-      {full && <NextLinks record={full} />}
+      {full && <RunLinks record={full} />}
     </div>
   );
 };

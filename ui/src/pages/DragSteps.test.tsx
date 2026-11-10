@@ -43,26 +43,21 @@ describe('DragSteps', () => {
     expect(within(tile(1)).getByText('Gives: reference_no, mobile, company')).toBeInTheDocument();
   });
 
-  it('a function that fits nowhere is dimmed, not draggable, and has no +', () => {
+  it('every function can be dragged and added, whatever the flow holds', async () => {
     render(<Harness steps={[step('create-user')]} />);
-    for (const title of ['[Web] Create ER User', '[Web] Register', '[Web] Enrol']) {
-      expect(chip(title)).toHaveClass('off');
-      expect(chip(title)).toHaveAttribute('draggable', 'false');
-      expect(screen.getByRole('button', { name: `Add ${title}` })).toBeDisabled();
+    for (const title of ['[Web] Create ER User', '[Admin] Vet', '[Web] Register', '[Web] Enrol']) {
+      expect(chip(title)).not.toHaveClass('off');
+      expect(chip(title)).toHaveAttribute('draggable', 'true');
+      expect(screen.getByRole('button', { name: `Add ${title}` })).toBeEnabled();
     }
-    expect(chip('[Admin] Vet')).toHaveAttribute('draggable', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Add [Web] Enrol' }));
+    expect(order()).toEqual(['create-user', 'member-enrol']);
   });
 
-  it('a function that fits only first can be dragged, but has no +', () => {
-    render(<Harness steps={[step('vet-datamod')]} />);
-    expect(chip('[Web] Create ER User')).not.toHaveClass('off');
-    expect(screen.getByRole('button', { name: 'Add [Web] Create ER User' })).toBeDisabled();
-  });
-
-  it('dragging a function lights up only the gaps where it fits', () => {
+  it('dragging a function lights up every gap', () => {
     render(<Harness steps={[step('create-user'), step('vet-datamod')]} />);
     fireEvent.dragStart(chip('[API] Activate'), { dataTransfer });
-    expect(gap(0)).not.toHaveClass('ok');
+    expect(gap(0)).toHaveClass('ok');
     expect(gap(1)).toHaveClass('ok');
     expect(gap(2)).toHaveClass('ok');
     fireEvent.dragOver(gap(1));
@@ -85,10 +80,10 @@ describe('DragSteps', () => {
     expect(order()).toEqual(['create-user', 'vet-datamod']);
   });
 
-  it('dropping where it does not fit changes nothing', () => {
+  it('a function dropped before a starting one goes there too', () => {
     render(<Harness steps={[step('create-user'), step('vet-datamod')]} />);
     dragTo(chip('[API] Activate'), gap(0));
-    expect(order()).toEqual(['create-user', 'vet-datamod']);
+    expect(order()).toEqual(['activate-api', 'create-user', 'vet-datamod']);
   });
 
   it('dragging a step moves it, and fades it while it moves', () => {
@@ -107,16 +102,16 @@ describe('DragSteps', () => {
     expect(order()).toEqual(['create-user', 'vet-datamod', 'activate-api']);
   });
 
-  it('↑ and ↓ move a step, and are off where the move would break the order', async () => {
+  it('↑ and ↓ move a step, and are off only at the ends', async () => {
     render(<Harness steps={[step('create-user'), step('vet-datamod'), step('activate-api')]} />);
     expect(screen.getByRole('button', { name: 'Move step 1 up' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Move step 1 down' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Move step 2 up' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move step 1 down' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Move step 2 up' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Move step 3 down' })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: 'Move step 2 down' }));
     expect(order()).toEqual(['create-user', 'activate-api', 'vet-datamod']);
-    await userEvent.click(screen.getByRole('button', { name: 'Move step 3 up' }));
-    expect(order()).toEqual(['create-user', 'vet-datamod', 'activate-api']);
+    await userEvent.click(screen.getByRole('button', { name: 'Move step 1 down' }));
+    expect(order()).toEqual(['activate-api', 'create-user', 'vet-datamod']);
   });
 
   it('✕ removes the step', async () => {

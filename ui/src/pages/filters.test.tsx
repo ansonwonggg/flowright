@@ -8,7 +8,7 @@ import { HistoryTable, kindLabel, RecordCard, StatusPill } from '../components/b
 import { ValueInput } from '../components/ValueInput.tsx';
 import { FIELDS, FUNCTIONS, META, record, run } from '../lib/fixtures.test-utils.ts';
 import { ago, duration, who } from '../lib/format.ts';
-import { eligible, presetsFor } from './FunctionPage.tsx';
+import { presetsFor } from './FunctionPage.tsx';
 import { matchesHistory } from './HistoryPage.tsx';
 import { cardNote, FunctionList } from './HomePage.tsx';
 
@@ -54,11 +54,7 @@ describe('matchesHistory', () => {
   it('a run with no input or records still matches by title', () => expect(matchesHistory(run({ input: undefined as never, records: undefined as never }), { ...all, query: 'register' })).toBe(true));
 });
 
-describe('eligible / presetsFor / cardNote', () => {
-  it('eligible keeps records of the function\'s kind that list it as next', () => {
-    const rows = [record(), record({ key: 'DMD2', next: [] }), record({ kind: 'member', key: 'RGD1' })];
-    expect(eligible(fnOf('vet-datamod'), rows).map((r) => r.key)).toEqual(['DMD1']);
-  });
+describe('presetsFor / cardNote', () => {
   it('presetsFor gives a JSON field\'s presets by its name, when it has a presets folder; none for anything else', () => {
     expect(presetsFor(fieldOf('user_spec'), PRESETS).map((p) => p.file)).toEqual(['u', 'u2']);
     expect(presetsFor(fieldOf('member_spec'), PRESETS)[0].file).toBe('m');
@@ -112,7 +108,7 @@ describe('bits', () => {
     expect(screen.queryByText(/\d+s$/)).not.toBeInTheDocument();
   });
 
-  it('RecordCard shows the current stage, login with copy, and next links', () => {
+  it('RecordCard shows the current stage, login with copy, and a run link per function that takes it', () => {
     render(
       <MemoryRouter>
         <RecordCard made={{ kind: 'er-user', ref: 'DMD1', stage: 'create-user', stageLabel: 'Create', summary: 'DMD1 Company AP @ PCCW' }} full={record()} meta={META} />
@@ -121,8 +117,8 @@ describe('bits', () => {
     expect(screen.getByText('ER user')).toBeInTheDocument();
     expect(screen.getByText('etoe.abc')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Copy' })).toHaveLength(2);
-    expect(screen.getByText('Create · SUBMITTED')).toHaveClass('todo');
-    expect(screen.getByRole('link', { name: 'Next: [Admin] Vet →' })).toHaveAttribute('href', '/fn/vet-datamod?ref=DMD1');
+    expect(screen.getByText('Create · SUBMITTED')).toHaveClass('chip');
+    expect(screen.getByRole('link', { name: 'Run: [Admin] Vet →' })).toHaveAttribute('href', '/fn/vet-datamod?ref=DMD1');
   });
 
   it('RecordCard without the current record falls back to what the run saw, with no links; an unknown kind shows as itself', () => {

@@ -57,18 +57,12 @@ export const recordDetails = (record: Pick<RecordView, 'values' | 'stageLabel'>,
   return [['Stage', record.stageLabel], ...known, ...unknown];
 };
 
-const alreadyHas = (fn: Pick<FunctionMeta, 'outputs' | 'recordKey'>, values: Record<string, string>) => {
-  const own = (fn.outputs ?? []).filter((name) => name !== fn.recordKey && name !== 'status');
-  return own.length > 0 && own.every((name) => values[name]);
-};
-
 /**
- * Functions to run on the record next, in the order given: those on its kind that don't make a new record,
- * haven't run on it yet, and would give something it lacks. A function whose outputs, apart from the key
- * and `status`, the record already holds is left out: e.g. an activation, once another one gave the login.
+ * Functions that take a record of `kind` by its key, in the order given: those declared on that kind that
+ * don't make a new one. It says nothing about whether running one makes sense for a given record; that
+ * is the tester's call.
  */
-export const nextForRecord = <F extends Pick<FunctionMeta, 'id' | 'record' | 'starts' | 'outputs' | 'recordKey'>>(record: Pick<RecordFile, 'kind' | 'history' | 'values'>, fns: F[]): F[] =>
-  fns.filter((f) => f.record === record.kind && !f.starts && !(record.history ?? []).some((h) => h.function === f.id) && !alreadyHas(f, record.values ?? {}));
+export const functionsOn = <F extends Pick<FunctionMeta, 'record' | 'starts'>>(kind: string, fns: F[]): F[] => fns.filter((f) => f.record === kind && !f.starts);
 
 /** When each record last changed, keyed `kind/key`; what {@link changedRecords} compares against. */
 export type RecordSnapshot = Map<string, string>;

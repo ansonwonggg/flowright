@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { nextFunctions } from '../../../src/flow.ts';
 import { ApiError, type Meta, type Preset } from '../api.ts';
 import { useDialog } from '../components/Dialog.tsx';
 import { RunBar } from '../components/RunBar.tsx';
@@ -44,7 +43,7 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
   const runName = named || titles.join(' → ');
   const saveAs = fileName.trim() || slugify(title);
   const kinds = Object.values(meta.settings.records).map((r) => r.label);
-  const offered = nextFunctions(meta.functions, flow.steps);
+  const offered = meta.functions;
 
   const run = async () => {
     const body = (

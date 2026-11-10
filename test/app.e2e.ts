@@ -68,7 +68,7 @@ describe('flowkit app on the example repo', { timeout: 240_000 }, () => {
     assert.deepEqual(check.body.problems, []);
     assert.deepEqual(check.body.fromRecord.sort(), ['id_number', 'mobile']);
     const records = await get('/api/records');
-    assert.deepEqual(records.find((r: { key: string }) => r.key === ref).next.map((n: { id: string }) => n.id).sort(), ['activate-er-user-kiosk', 'activate-er-user-web', 'vet-er-user']);
+    assert.deepEqual(records.find((r: { key: string }) => r.key === ref).functions.map((n: { id: string }) => n.id).sort(), ['activate-er-user-kiosk', 'activate-er-user-web', 'vet-er-user']);
   });
 
   it('refuses bad inputs before anything runs', async () => {

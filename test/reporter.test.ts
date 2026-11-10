@@ -29,17 +29,22 @@ describe('resumeLine', () => {
 });
 
 describe('recordLines', () => {
-  test('the record in the kit\'s words, then each function it can take next, with its command', () => {
+  test('the record in the kit\'s words, then each function that takes it, with its command, whatever has run', () => {
     const lines = recordLines(record(['create-user', 'vet-datamod']), FNS, SETTINGS);
     expect(lines[0]).toContain('ER user  DMD1 · Vet · SUCCEED');
-    expect(lines).toHaveLength(2);
-    expect(lines[1]).toContain('npm run fn -- activate-api reference_no=DMD1');
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toContain('npm run fn -- vet-datamod reference_no=DMD1');
+    expect(lines[2]).toContain('npm run fn -- activate-api reference_no=DMD1');
   });
-  test("the kit's summary parts follow the key; a function whose outputs the record holds isn't offered", () =>
-    expect(recordLines(record(['create-user', 'vet-datamod'], { username: 'etoe.a' }), FNS, SETTINGS)).toEqual(['  ER user  DMD1 etoe.a · Vet · SUCCEED']));
-  test('a record every function has run on has a single line; a kind with no label shows as itself', () => {
-    expect(recordLines(record(['create-user', 'vet-datamod', 'activate-api']), FNS, SETTINGS)).toHaveLength(1);
-    expect(recordLines({ ...record([]), kind: 'thing' }, FNS, SETTINGS)[0]).toContain('thing    DMD1 · Vet · SUCCEED');
+  test("the kit's summary parts follow the key; what the record already holds doesn't hide a function", () => {
+    const lines = recordLines(record(['create-user', 'vet-datamod'], { username: 'etoe.a' }), FNS, SETTINGS);
+    expect(lines[0]).toBe('  ER user  DMD1 etoe.a · Vet · SUCCEED');
+    expect(lines).toHaveLength(3);
+  });
+  test('a kind no function takes has a single line, and shows as itself without a label', () => {
+    const lines = recordLines({ ...record([]), kind: 'thing' }, FNS, SETTINGS);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('thing    DMD1 · Vet · SUCCEED');
   });
 });
 

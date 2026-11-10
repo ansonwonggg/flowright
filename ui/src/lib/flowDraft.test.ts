@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FieldJson } from '../api.ts';
 import { FIELDS, FUNCTIONS } from './fixtures.test-utils.ts';
-import { draftFrom, dropGaps, flowOf, groupOf, titleOf, formOf, inOrder, inputSource, insertAt, moveTo, newStep, placeholderFor } from './flowDraft.ts';
+import { draftFrom, dropGaps, flowOf, groupOf, titleOf, formOf, inputSource, insertAt, moveTo, newStep, placeholderFor } from './flowDraft.ts';
 
 const options = { creators: [{ value: 'ER', label: 'ER' }], userTypes: [{ value: 'Company AP', label: 'Company AP' }] };
 const fieldOf = (name: string) => FIELDS.find((f) => f.name === name)!;
@@ -97,35 +97,21 @@ describe('insertAt', () => {
   });
 });
 
-describe('inOrder', () => {
-  it('empty and one step', () => {
-    expect(inOrder(FUNCTIONS, [])).toBe(true);
-    expect(inOrder(FUNCTIONS, ['vet-datamod'])).toBe(true);
-  });
-  it('a starting function then functions on the same kind of record', () => expect(inOrder(FUNCTIONS, ['create-user', 'vet-datamod', 'activate-api'])).toBe(true));
-  it('a starting function anywhere but first', () => expect(inOrder(FUNCTIONS, ['vet-datamod', 'create-user'])).toBe(false));
-  it('a function on another kind of record', () => expect(inOrder(FUNCTIONS, ['create-user', 'member-enrol'])).toBe(false));
-  it('an unknown function does not block the rest', () => {
-    expect(inOrder(FUNCTIONS, ['create-user', 'nope', 'vet-datamod'])).toBe(true);
-    expect(inOrder(FUNCTIONS, ['nope', 'vet-datamod'])).toBe(true);
-  });
-});
-
 describe('dropGaps', () => {
   const ids = ['create-user', 'vet-datamod'];
-  it('a new function: every gap where the flow stays in order', () => {
-    expect(dropGaps(FUNCTIONS, ids, { fn: 'activate-api' })).toEqual([false, true, true]);
-    expect(dropGaps(FUNCTIONS, ids, { fn: 'create-user' })).toEqual([false, false, false]);
-    expect(dropGaps(FUNCTIONS, ids, { fn: 'member-enrol' })).toEqual([false, false, false]);
+  it('a new function fits every gap, whatever it is', () => {
+    expect(dropGaps(ids, { fn: 'activate-api' })).toEqual([true, true, true]);
+    expect(dropGaps(ids, { fn: 'create-user' })).toEqual([true, true, true]);
+    expect(dropGaps(ids, { fn: 'member-enrol' })).toEqual([true, true, true]);
   });
-  it('into an empty flow, anything goes', () => expect(dropGaps(FUNCTIONS, [], { fn: 'vet-datamod' })).toEqual([true]));
-  it('a starting function into a flow without one: only first', () => expect(dropGaps(FUNCTIONS, ['vet-datamod'], { fn: 'create-user' })).toEqual([true, false]));
-  it('a moved step: the gaps beside it change nothing, so they are off', () => {
+  it('into an empty flow: the one gap', () => expect(dropGaps([], { fn: 'vet-datamod' })).toEqual([true]));
+  it('a moved step: the gaps beside it change nothing, so they are off; every other gap is on', () => {
     const three = ['create-user', 'vet-datamod', 'activate-api'];
-    expect(dropGaps(FUNCTIONS, three, { from: 1 })).toEqual([false, false, false, true]);
-    expect(dropGaps(FUNCTIONS, three, { from: 0 })).toEqual([false, false, false, false]);
-    expect(dropGaps(FUNCTIONS, three, { from: 2 })).toEqual([false, true, false, false]);
+    expect(dropGaps(three, { from: 1 })).toEqual([true, false, false, true]);
+    expect(dropGaps(three, { from: 0 })).toEqual([false, false, true, true]);
+    expect(dropGaps(three, { from: 2 })).toEqual([true, true, false, false]);
   });
+  it('the only step has nowhere to move', () => expect(dropGaps(['a'], { from: 0 })).toEqual([false, false]));
 });
 
 describe('titleOf', () => {

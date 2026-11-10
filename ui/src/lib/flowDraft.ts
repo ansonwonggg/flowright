@@ -1,4 +1,4 @@
-import { comesFromEarlier, nextFunctions, producedBefore } from '../../../src/flow.ts';
+import { comesFromEarlier, producedBefore } from '../../../src/flow.ts';
 import { toSpec, toValues, withSelectDefaults, type FormValues, type OptionLists } from '../../../src/forms/engine.ts';
 import type { FormConfig } from '../../../src/forms/types.ts';
 import type { FieldJson, FlowDef, Fn } from '../api.ts';
@@ -98,26 +98,15 @@ export const moveTo = <T>(list: T[], from: number, to: number): T[] => {
   return insertAt(rest, list[from], gap > from ? gap - 1 : gap);
 };
 
-/**
- * Whether functions `ids` may run in this order: only the first may make a new record, and the rest must
- * work on the same kind of record. Unknown ids are skipped, so the server can name them instead.
- */
-export const inOrder = (fns: Fn[], ids: string[]): boolean =>
-  ids.every((id, i) => i === 0 || !fns.some((f) => f.id === id) || nextFunctions(fns, ids.slice(0, i).map((f) => ({ function: f }))).some((f) => f.id === id));
-
 /** What is being dragged: a function from the palette, or the step at index `from`. */
 export type Dragged = { fn: string } | { from: number };
 
 /**
- * For each gap of the flow (`ids.length + 1` of them), whether dropping `dragged` there keeps the flow in
- * order. Gaps where a moved step would land where it already is are false.
+ * For each gap of the flow (`ids.length + 1` of them), whether dropping `dragged` there changes the flow.
+ * Any order is allowed; only gaps where a moved step would land where it already is are false.
  */
-export const dropGaps = (fns: Fn[], ids: string[], dragged: Dragged): boolean[] =>
-  Array.from({ length: ids.length + 1 }, (_, gap) => {
-    if ('fn' in dragged) return inOrder(fns, insertAt(ids, dragged.fn, gap));
-    if (gap === dragged.from || gap === dragged.from + 1) return false;
-    return inOrder(fns, moveTo(ids, dragged.from, gap));
-  });
+export const dropGaps = (ids: string[], dragged: Dragged): boolean[] =>
+  Array.from({ length: ids.length + 1 }, (_, gap) => 'fn' in dragged || (gap !== dragged.from && gap !== dragged.from + 1));
 
 const textOf = (def: unknown, key: 'title' | 'group'): string => {
   const value = def && typeof def === 'object' && !Array.isArray(def) ? (def as Record<string, unknown>)[key] : undefined;

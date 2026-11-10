@@ -4,7 +4,6 @@ import { field } from '../src/fields.ts';
 import {
   flowProblems,
   newFlowRun,
-  nextFunctions,
   nextStepIndex,
   producedBefore,
   resolveInput,
@@ -47,25 +46,16 @@ describe('producedBefore', () => {
   });
 });
 
-describe('nextFunctions', () => {
-  it('empty: everything', () => assert.equal(nextFunctions(FNS, []).length, 5));
-  it('same record, not starting ones', () => assert.deepEqual(ids(nextFunctions(FNS, [{ function: 'create' }])), ['vet', 'activate']));
-  it('member side', () => assert.deepEqual(ids(nextFunctions(FNS, [{ function: 'register' }])), ['enrol']));
-  it('unknown first step counts as empty', () => assert.equal(nextFunctions(FNS, [{ function: 'x' }]).length, 5));
-});
-
 describe('flowProblems', () => {
   it('a good flow', () => assert.deepEqual(flowProblems(FNS, FIELDS, WEB), []));
   it('one record function with its input typed', () => assert.deepEqual(flowProblems(FNS, FIELDS, { steps: [{ function: 'vet', values: { ref: 'DMD1' } }] }), []));
   for (const bad of [undefined, null, {}, { steps: [] }, { steps: 'x' }])
     it(`no steps: ${JSON.stringify(bad)}`, () => assert.deepEqual(flowProblems(FNS, FIELDS, bad), ['A flow needs at least one step.']));
   it('unknown function', () => assert.deepEqual(flowProblems(FNS, FIELDS, { steps: [{ function: 'x' }] }), ['Step 1: unknown function "x"']));
-  it('a starting function later on', () =>
-    assert.deepEqual(flowProblems(FNS, FIELDS, { steps: [...WEB.steps, { function: 'create', values: { company: 'C' } }] }), ['Step 4: create makes a new record, so it can only be the first step']));
-  it('mixing records', () =>
-    assert.deepEqual(flowProblems(FNS, FIELDS, { steps: [{ function: 'create', values: { company: 'C' } }, { function: 'enrol', values: { reg: 'R' } }] }), [
-      'Step 2: enrol works on member; this flow works on user',
-    ]));
+  it('a starting function later on is fine: order is the author\'s call', () =>
+    assert.deepEqual(flowProblems(FNS, FIELDS, { steps: [...WEB.steps, { function: 'create', values: { company: 'C' } }] }), []));
+  it('mixing records is fine', () =>
+    assert.deepEqual(flowProblems(FNS, FIELDS, { steps: [{ function: 'create', values: { company: 'C' } }, { function: 'enrol', values: { reg: 'R' } }] }), []));
   it('a required input neither typed nor given earlier; blank counts as missing', () =>
     assert.deepEqual(flowProblems(FNS, FIELDS, { steps: [{ function: 'activate', values: { ref: ' ' } }] }), ['Step 1: activate needs Ref', 'Step 1: activate needs Mobile']));
   it('an input the function lacks, and a typed value breaking its rule', () =>
@@ -89,10 +79,10 @@ describe('flowProblems', () => {
     assert.deepEqual(flowProblems(fns, FIELDS, { steps: [{ function: 'make', values: { spec: { x: 1 } } }] }), ['Step 1: spec: company is required']);
     assert.deepEqual(flowProblems(fns, FIELDS, { steps: [{ function: 'make', values: { spec: {} } }] }), ['Step 1: make needs Spec']);
   });
-  it('functions with no record never mix', () => {
+  it('functions with and without a record can share a flow', () => {
     const plain = [meta({ id: 'a' }), meta({ id: 'b' })];
     assert.deepEqual(flowProblems(plain, FIELDS, { steps: [{ function: 'a' }, { function: 'b' }] }), []);
-    assert.deepEqual(flowProblems([...plain, meta({ id: 'c', record: 'user' })], FIELDS, { steps: [{ function: 'a' }, { function: 'c' }] }), ['Step 2: c works on user; this flow works on no record']);
+    assert.deepEqual(flowProblems([...plain, meta({ id: 'c', record: 'user' })], FIELDS, { steps: [{ function: 'a' }, { function: 'c' }] }), []);
   });
 });
 

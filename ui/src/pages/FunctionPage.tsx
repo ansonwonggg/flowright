@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toSpec, toValues, withSelectDefaults, type FormValues } from '../../../src/forms/engine.ts';
-import { ApiError, type FieldJson, type Fn, type Meta, type Preset, type Presets, type RecordRow } from '../api.ts';
+import { ApiError, type FieldJson, type Fn, type Meta, type Preset, type Presets } from '../api.ts';
 import { useDialog } from '../components/Dialog.tsx';
 import { kindLabel } from '../components/bits.tsx';
 import { FnTitle } from '../components/FnTitle.tsx';
@@ -11,16 +11,12 @@ import { RunBar } from '../components/RunBar.tsx';
 import { ValueInput } from '../components/ValueInput.tsx';
 import { splitTag } from '../lib/flowChart.ts';
 import { formOf } from '../lib/flowDraft.ts';
-import { ago, who } from '../lib/format.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
-import { useInputCheck, useLive, useMeta, usePresets, useRecords, useRun, useSavePreset, useStartRun } from '../queries.ts';
+import { useInputCheck, useLive, useMeta, usePresets, useRun, useSavePreset, useStartRun } from '../queries.ts';
 
 /** Saved presets for a JSON input with a presets folder; none for other fields. */
 export const presetsFor = (field: FieldJson | undefined, presets: Presets | undefined): Preset[] =>
   (field?.kind === 'json' && field.presets && presets?.fields[field.name]) || [];
-
-/** Records a function can run on now: of its kind, with it among their next functions. */
-export const eligible = (fn: Pick<Fn, 'id' | 'record'>, records: RecordRow[]) => records.filter((r) => r.kind === fn.record && r.next.some((n) => n.id === fn.id));
 
 const MASK = '••••';
 
@@ -95,44 +91,12 @@ const JsonInput = ({ fn, field, meta, presets, start, values, onChange }: { fn: 
   );
 };
 
-const RecordPicker = ({ fn, field, meta, records, value, onChange }: { fn: Fn; field: FieldJson; meta: Meta; records: RecordRow[]; value: string; onChange: (v: string) => void }) => {
-  const list = eligible(fn, records);
-  const noun = kindLabel(fn.record ?? '', meta);
-  return (
-    <section className="card">
-      <h2 className="sub">Which {noun}?</h2>
-      {list.length ? (
-        <div className="choices">
-          {list.map((r) => (
-            <label key={r.key} className={`choice ${value === r.key ? 'on' : ''}`}>
-              <input type="radio" name="record" checked={value === r.key} onChange={() => onChange(r.key)} />
-              <span>
-                <span className="mono strong">{r.key}</span> {who(r.summary, r.key)}
-                <div className="hint">
-                  {r.stageLabel} · {ago(r.updatedAt)}
-                </div>
-              </span>
-            </label>
-          ))}
-        </div>
-      ) : (
-        <div className="muted">No {noun} under out/records is ready for this.</div>
-      )}
-      <div className="field gap-top">
-        <label htmlFor={`in-${field.name}`}>Or type a {field.label}</label>
-        <input id={`in-${field.name}`} type="text" value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />
-        <div className="hint">Inputs you leave blank come from its record.</div>
-      </div>
-    </section>
-  );
-};
-
-const FunctionForm = ({ fn, meta, presets, records, initial }: { fn: Fn; meta: Meta; presets?: Presets; records: RecordRow[]; initial: Initial }) => {
+const FunctionForm = ({ fn, meta, presets, initial }: { fn: Fn; meta: Meta; presets?: Presets; initial: Initial }) => {
   const navigate = useNavigate();
   const fieldOf = (name: string) => meta.fields.find((f) => f.name === name);
   const jsonNames = Object.keys(fn.inputs).filter((name) => formOf(fieldOf(name)));
   const key = fn.recordKey && !fn.starts ? fn.recordKey : undefined;
-  const plainNames = Object.keys(fn.inputs).filter((name) => name !== key && !jsonNames.includes(name));
+  const plainNames = [...(key ? [key] : []), ...Object.keys(fn.inputs).filter((name) => name !== key && !jsonNames.includes(name))];
   const [values, setValues] = useState(initial.values);
   const [forms, setForms] = useState<Record<string, FormValues>>(() =>
     Object.fromEntries(jsonNames.map((name) => [name, withSelectDefaults(formOf(fieldOf(name))!, toValues(formOf(fieldOf(name))!, initial.json[name]), meta.options, fn.id)])),
@@ -167,7 +131,6 @@ const FunctionForm = ({ fn, meta, presets, records, initial }: { fn: Fn; meta: M
     <div className="stack">
       {dialog}
       <div className="stack">
-        {key && <RecordPicker fn={fn} meta={meta} field={fieldOf(key)!} records={records} value={values[key] ?? ''} onChange={(v) => set(key, v)} />}
         {jsonNames.map((name) => (
           <JsonInput
             key={name}
@@ -182,7 +145,7 @@ const FunctionForm = ({ fn, meta, presets, records, initial }: { fn: Fn; meta: M
         ))}
         {plainNames.length > 0 && (
           <section className="card">
-            <h2 className="sub">{key ? 'Other inputs' : 'Inputs'}</h2>
+            <h2 className="sub">Inputs</h2>
             <div className="block-fields">
               {plainNames.map((name) => {
                 const field = fieldOf(name) ?? { name, kind: 'text' as const, label: name };
@@ -195,7 +158,11 @@ const FunctionForm = ({ fn, meta, presets, records, initial }: { fn: Fn; meta: M
                       {required && !fromRecord.includes(name) && <span className="bad-text"> *</span>}
                     </label>
                     <ValueInput id={`in-${name}`} field={field} meta={meta} value={values[name] ?? ''} placeholder={placeholder} onChange={(v) => set(name, v)} />
-                    {field.hint && <div className="hint">{field.hint}</div>}
+                    {name === key ? (
+                      <div className="hint">Inputs you leave blank come from this {kindLabel(fn.record ?? '', meta)}'s record, when there is one.</div>
+                    ) : (
+                      field.hint && <div className="hint">{field.hint}</div>
+                    )}
                   </div>
                 );
               })}
@@ -263,13 +230,12 @@ export const FunctionPage = () => {
   const [params] = useSearchParams();
   const { data: meta } = useMeta();
   const { data: presets } = usePresets();
-  const { data: records = [] } = useRecords();
   if (!meta || !presets) return <div className="empty">Loading…</div>;
   const fn = meta.functions.find((f) => f.id === id);
   if (!fn) return <div className="empty">No function {id}.</div>;
   const ref = params.get('ref');
   const runId = params.get('run');
-  const form = (initial: Initial) => <FunctionForm key={`${id}:${ref}:${runId}`} fn={fn} meta={meta} presets={presets} records={records} initial={initial} />;
+  const form = (initial: Initial) => <FunctionForm key={`${id}:${ref}:${runId}`} fn={fn} meta={meta} presets={presets} initial={initial} />;
   const jsonName = Object.keys(fn.inputs).find((name) => formOf(meta.fields.find((f) => f.name === name)));
   const remembered = jsonName ? presetsFor(meta.fields.find((f) => f.name === jsonName), presets).find((p) => p.file === readPref(`preset:${fn.id}`)) : undefined;
   const fresh: Initial = {
