@@ -144,6 +144,14 @@ select, input[type=text], input[type=search], input[type=password], input[type=n
 select:hover, input[type=text]:hover, input[type=search]:hover, input[type=password]:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 select:focus, input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); background: var(--panel); }
 ::placeholder { color: var(--faint); }
+.suggest { position: relative; }
+.suggest input { padding-right: 36px; }
+.suggest-toggle { position: absolute; top: 1px; right: 1px; bottom: 1px; width: 32px; border: 0; border-radius: 0 8px 8px 0; background: transparent; color: var(--muted); font-size: 16px; cursor: pointer; }
+.suggest-toggle:hover { color: var(--accent); }
+.suggest-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 7; max-height: 280px; overflow-y: auto; margin: 0; padding: 5px; list-style: none; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 36px rgba(0, 0, 0, .16); }
+.suggest-list li { padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+.suggest-list li:hover, .suggest-list li.active { background: var(--accent-soft); color: var(--accent); }
+.suggest-list li[aria-selected=true] { font-weight: 650; }
 .radios { display: flex; gap: 8px; flex-wrap: wrap; }
 .radios label { display: flex; gap: 6px; align-items: center; padding: 8px 14px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; font-weight: 550; background: var(--raised); transition: border-color .12s, background .12s; }
 .radios label:hover { border-color: var(--accent); }

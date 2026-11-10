@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { getAt, isShown, joinPath, setAt, shownRows, type EntryRow, type FormValues, type OptionLists } from '../../../src/forms/engine.ts';
 import type { FormConfig, FormField, ItemField, Option } from '../../../src/forms/types.ts';
+import { SuggestInput } from './SuggestInput.tsx';
 
 /**
  * Draws any {@link FormConfig} as an editable form. Holds no state: `values` come in, `onChange` gets
@@ -68,21 +69,13 @@ export const FormRenderer = ({ form, values, onChange, options, project }: FormR
         return (
           <div className="field">
             <label htmlFor={id}>{field.label}</label>
-            <input
+            <SuggestInput
               id={id}
-              type="text"
               value={typeof value === 'string' ? value : ''}
               placeholder={field.placeholder}
-              list={field.suggest ? `s-${field.suggest}` : undefined}
-              onChange={(e) => set(field.key, e.target.value)}
+              suggestions={field.suggest ? (options[field.suggest] ?? []).map((o) => o.value) : []}
+              onChange={(v) => set(field.key, v)}
             />
-            {field.suggest && (
-              <datalist id={`s-${field.suggest}`}>
-                {(options[field.suggest] ?? []).map((o) => (
-                  <option key={o.value} value={o.value} />
-                ))}
-              </datalist>
-            )}
             <Hint text={field.hint} />
           </div>
         );

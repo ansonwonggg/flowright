@@ -1,4 +1,5 @@
 import type { FieldJson, Meta } from '../api.ts';
+import { SuggestInput } from './SuggestInput.tsx';
 
 /**
  * One input for a registry field: a select for a `select` field, a password box for a `secret`, else a
@@ -20,18 +21,14 @@ export const ValueInput = ({ id, field, value, placeholder, meta, onChange }: { 
         ))}
       </select>
     );
-  const suggestions = meta.options[field.name] ?? [];
-  const list = suggestions.length ? `${id}-list` : undefined;
   return (
-    <>
-      <input id={id} type={field.kind === 'secret' ? 'password' : 'text'} autoComplete="off" list={list} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-      {list && (
-        <datalist id={list}>
-          {suggestions.map((o) => (
-            <option key={o.value} value={o.value} />
-          ))}
-        </datalist>
-      )}
-    </>
+    <SuggestInput
+      id={id}
+      type={field.kind === 'secret' ? 'password' : 'text'}
+      value={value}
+      placeholder={placeholder}
+      suggestions={(meta.options[field.name] ?? []).map((o) => o.value)}
+      onChange={onChange}
+    />
   );
 };

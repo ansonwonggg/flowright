@@ -184,18 +184,21 @@ describe('ValueInput', () => {
     expect(screen.getByRole('option', { name: 'PA: Personal Account' })).toBeInTheDocument();
     expect(spy).toHaveBeenLastCalledWith('PA');
   });
-  it('a text field with an options list named after it gets a datalist', () => {
-    const { container } = render(<Harness field={fieldOf('scheme')} />);
-    expect(screen.getByLabelText('Scheme')).toHaveAttribute('list', 'x-list');
-    expect(container.querySelector('#x-list option')).toHaveAttribute('value', 'BCT (MPF) Pro Choice');
+  it('a text field with an options list named after it offers that list; a pick sets the value', async () => {
+    const spy = vi.fn();
+    render(<Harness field={fieldOf('scheme')} spy={spy} />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Scheme' }));
+    await userEvent.click(screen.getByRole('option', { name: 'BCT (MPF) Pro Choice' }));
+    expect(spy).toHaveBeenLastCalledWith('BCT (MPF) Pro Choice');
   });
   it('an option the field has no label for shows as itself', () => {
     render(<Harness field={{ name: 'kind', kind: 'select', label: 'Kind', options: ['A'] }} />);
     expect(screen.getByRole('option', { name: 'A' })).toHaveValue('A');
   });
-  it('no suggestion list: no datalist', () => {
+  it('no suggestion list: a plain text box', () => {
     render(<Harness field={fieldOf('username')} />);
-    expect(screen.getByLabelText('Username')).not.toHaveAttribute('list');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Username')).toHaveAttribute('type', 'text');
   });
 });
 

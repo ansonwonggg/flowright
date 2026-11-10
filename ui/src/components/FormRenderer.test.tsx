@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -20,7 +20,10 @@ const options = {
   roles: ['Preparer', 'Approver', 'Select All'].map((v) => ({ value: v, label: v })),
   accountTypes: [{ value: 'PA', label: 'Personal Account (PA)' }],
   'er-user': [{ value: 'DMD1', label: 'DMD1 Company AP @ Acme' }],
-  company: [{ value: 'Acme', label: 'Acme' }],
+  company: [
+    { value: 'Acme', label: 'Acme' },
+    { value: 'Beta', label: 'Beta' },
+  ],
 };
 
 const Harness = ({ form, initial, project = 'create-user', spy }: { form: FormConfig; initial: FormValues; project?: string; spy?: (v: FormValues) => void }) => {
@@ -103,10 +106,13 @@ describe('FormRenderer: user form', () => {
     expect(spec().email).toBeUndefined();
   });
 
-  it('offers suggestions on text fields', () => {
-    const { container } = render(<Harness form={USER_FORM} initial={base} />);
-    expect(screen.getByLabelText('Company')).toHaveAttribute('list', 's-company');
-    expect(container.querySelector('datalist#s-company option')).toHaveAttribute('value', 'Acme');
+  it('offers every suggestion on a text field that already holds one, and a pick sets it', async () => {
+    const spy = vi.fn();
+    render(<Harness form={USER_FORM} initial={base} spy={spy} />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Company' }));
+    expect(within(screen.getByRole('listbox')).getAllByRole('option').map((o) => o.textContent)).toEqual(['Acme', 'Beta']);
+    await userEvent.click(screen.getByRole('option', { name: 'Beta' }));
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ company: 'Beta' }));
   });
 });
 
