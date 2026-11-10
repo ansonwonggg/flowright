@@ -1,7 +1,7 @@
 import { Fragment, useState, type DragEvent } from 'react';
 import { functionsIn, type Arm } from '../../../src/flow.ts';
 import type { FlowDef, Fn, Meta } from '../api.ts';
-import { carried, flowGives, groupByRecord, splitTag, startLabel, stepErrors, toneOf } from '../lib/flowChart.ts';
+import { carried, flowGives, groupByRecord, missingInputs, someOf, splitTag, startLabel, stepErrors, toneOf } from '../lib/flowChart.ts';
 import {
   dropGaps,
   flatIndexes,
@@ -148,6 +148,23 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
       </ul>
     );
 
+  const todo = (missing: string[], key: string, isOpen: boolean) =>
+    missing.length > 0 && (
+      <div className="node-todo">
+        <span className="todo-count">
+          {missing.length} input{missing.length === 1 ? '' : 's'} to fill
+        </span>
+        <span className="todo-names">{someOf(missing)}</span>
+        {!isOpen && (
+          <button type="button" className="btn small" onClick={() => setOpen(key)}>
+            Fill in
+          </button>
+        )}
+      </div>
+    );
+
+  const stateClass = (missing: string[], other: string[]) => `${other.length ? ' has-errors' : missing.length ? ' needs-input' : ''}`;
+
   const inputsOf = (step: DraftStep, fn: Fn | undefined) => (
     <div className="node-inputs">
       <StepCard bare index={flatAt(step.key)} step={step} fn={fn} flow={flow} meta={meta} onChange={(next) => onSteps(replaceStep(steps, step.key, next))} onRemove={() => remove(step.key)} />
@@ -159,10 +176,10 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
     const title = fn?.title ?? `Unknown function "${step.fn}"`;
     const n = flatAt(step.key) + 1;
     const isOpen = open === step.key;
-    const problems = stepErrors(errors, n - 1);
+    const { missing, other } = missingInputs(stepErrors(errors, n - 1), fn?.title);
     return (
       <div key={step.key} className={`node-wrap${isOpen ? ' open' : ''}`}>
-        <div className={`node small${toneClass(title)}${problems.length ? ' has-errors' : ''}`} aria-label={`Step ${n} tile`}>
+        <div className={`node small${toneClass(title)}${stateClass(missing, other)}`} aria-label={`Step ${n} tile`}>
           <div className="node-head">
             <span className="step-no">{n}</span>
             <b className="node-title">
@@ -177,7 +194,8 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
               </button>
             </div>
           </div>
-          {errorList(problems)}
+          {todo(missing, step.key, isOpen)}
+          {errorList(other)}
         </div>
         {isOpen && inputsOf(step, fn)}
       </div>
@@ -241,13 +259,13 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
     const title = fn?.title ?? `Unknown function "${step.fn}"`;
     const moves = dropGaps(ids, { from: i });
     const n = flatAt(step.key) + 1;
-    const problems = stepErrors(errors, n - 1);
+    const { missing, other } = missingInputs(stepErrors(errors, n - 1), fn?.title);
     const isOpen = open === step.key;
     const moving = dragged && 'from' in dragged && dragged.from === i;
     return (
       <div className={`node-wrap${isOpen ? ' open' : ''}`}>
         <div
-          className={`node${toneClass(title)}${moving ? ' moving' : ''}${problems.length ? ' has-errors' : ''}`}
+          className={`node${toneClass(title)}${moving ? ' moving' : ''}${stateClass(missing, other)}`}
           aria-label={`Step ${n} tile`}
           draggable
           onDragStart={(e) => {
@@ -276,7 +294,8 @@ export const DragSteps = ({ steps, flow, meta, errors, onSteps }: DragStepsProps
               </button>
             </div>
           </div>
-          {errorList(problems)}
+          {todo(missing, step.key, isOpen)}
+          {errorList(other)}
           {fn && <div className="hint">Gives: {fn.outputs.join(', ') || 'nothing'}</div>}
         </div>
         {isOpen && inputsOf(step, fn)}

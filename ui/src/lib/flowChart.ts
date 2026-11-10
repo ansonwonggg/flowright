@@ -24,6 +24,60 @@ export const stepErrors = (errors: string[], index: number): string[] => {
   return errors.filter((e) => e.startsWith(prefix)).map((e) => e.slice(prefix.length));
 };
 
+/**
+ * One step's check errors (as {@link stepErrors} gives them) split into the inputs left blank, by label, and
+ * every other problem. The check words a blank input "<title> needs <label>", so `title` is the step's
+ * function title; `undefined` (an IF, an unknown function) leaves everything in `other`.
+ */
+export const missingInputs = (problems: string[], title: string | undefined): { missing: string[]; other: string[] } => {
+  const prefix = title === undefined ? undefined : `${title} needs `;
+  const missing: string[] = [];
+  const other: string[] = [];
+  for (const p of problems) {
+    if (prefix && p.startsWith(prefix)) missing.push(p.slice(prefix.length));
+    else other.push(p);
+  }
+  return { missing, other };
+};
+
+const NAMED_INPUTS = 3;
+
+/** Labels as "A, B, C and 2 more": at most three named. */
+export const someOf = (labels: string[]): string =>
+  labels.length > NAMED_INPUTS ? `${labels.slice(0, NAMED_INPUTS).join(', ')} and ${labels.length - NAMED_INPUTS} more` : labels.join(', ');
+
+const STEP = /^Step (\d+): /;
+
+/**
+ * The flow check's errors with each step's blank inputs folded into one line, "Step 1: <title> needs 5
+ * inputs: A, B, C and 2 more", at the place of the first. `titles[i]` is flat step i's title. A single
+ * blank input, other errors, and lines with no step or past `titles` pass through unchanged, in order.
+ */
+export const foldMissing = (errors: string[], titles: string[]): string[] => {
+  const missingOf = new Map<number, string[]>();
+  const placed: (string | number)[] = [];
+  for (const e of errors) {
+    const n = Number(STEP.exec(e)?.[1]);
+    const title = titles[n - 1];
+    const label = title === undefined ? undefined : missingInputs([e.replace(STEP, '')], title).missing[0];
+    if (label === undefined) {
+      placed.push(e);
+      continue;
+    }
+    if (!missingOf.has(n)) {
+      missingOf.set(n, []);
+      placed.push(n);
+    }
+    missingOf.get(n)?.push(label);
+  }
+  return placed.map((p) => {
+    if (typeof p === 'string') return p;
+    const labels = missingOf.get(p) ?? [];
+    const head = `Step ${p}: ${titles[p - 1]} needs`;
+    return labels.length === 1 ? `${head} ${labels[0]}` : `${head} ${labels.length} inputs: ${someOf(labels)}`;
+  });
+};
+
 /** Inputs of step `index` (flat) that an earlier step gives and the step leaves blank: what flows into it. An IF takes none. */
 export const carried = (fns: Fn[], flow: FlowDef, index: number): string[] => {
   const flat = flatten(flow);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FUNCTIONS, META } from './fixtures.test-utils.ts';
-import { carried, fileNameOf, flowGives, groupByRecord, slugify, splitTag, startLabel, stepErrors, toneOf } from './flowChart.ts';
+import { carried, fileNameOf, flowGives, foldMissing, groupByRecord, missingInputs, slugify, splitTag, startLabel, stepErrors, toneOf } from './flowChart.ts';
 
 describe('splitTag', () => {
   it('a leading [tag] is split off', () => expect(splitTag('[Web] Create ER User')).toEqual({ tag: 'Web', name: 'Create ER User' }));
@@ -96,4 +96,39 @@ describe('fileNameOf', () => {
     expect(fileNameOf('config/flows/cr089/g5.flow.json')).toBe('cr089/g5');
   });
   it('nothing gives blank', () => expect(fileNameOf(undefined)).toBe(''));
+});
+
+describe('missingInputs', () => {
+  it('splits "<title> needs <label>" into the blank inputs; anything else stays a problem', () =>
+    expect(missingInputs(['[Web] Enrol needs Scheme', 'scheme is not a code', '[Web] Enrol needs Mobile'], '[Web] Enrol')).toEqual({
+      missing: ['Scheme', 'Mobile'],
+      other: ['scheme is not a code'],
+    }));
+  it('"needs" under another title is not a blank input', () => expect(missingInputs(['the IF needs a value to test'], '[Web] Enrol')).toEqual({ missing: [], other: ['the IF needs a value to test'] }));
+  it('no title (an IF) or no problems: nothing missing', () => {
+    expect(missingInputs(['x needs y'], undefined)).toEqual({ missing: [], other: ['x needs y'] });
+    expect(missingInputs([], 'T')).toEqual({ missing: [], other: [] });
+  });
+});
+
+describe('foldMissing', () => {
+  const titles = ['[Web] Enrol', '[Admin] Vet'];
+  it("folds two or more blank inputs of a step into one line at the first one's place, naming three", () =>
+    expect(
+      foldMissing(
+        ['Step 1: [Web] Enrol needs A', 'Step 1: bad scheme', 'Step 1: [Web] Enrol needs B', 'Step 1: [Web] Enrol needs C', 'Step 1: [Web] Enrol needs D', 'Step 1: [Web] Enrol needs E'],
+        titles,
+      ),
+    ).toEqual(['Step 1: [Web] Enrol needs 5 inputs: A, B, C and 2 more', 'Step 1: bad scheme']));
+  it('exactly three: all named, no "more"', () =>
+    expect(foldMissing(['Step 2: [Admin] Vet needs A', 'Step 2: [Admin] Vet needs B', 'Step 2: [Admin] Vet needs C'], titles)).toEqual(['Step 2: [Admin] Vet needs 3 inputs: A, B, C']));
+  it('one blank input stays as the check worded it', () => expect(foldMissing(['Step 2: [Admin] Vet needs A'], titles)).toEqual(['Step 2: [Admin] Vet needs A']));
+  it('steps fold apart; lines without a step, or past the titles, pass through', () =>
+    expect(foldMissing(['flow: x', 'Step 1: [Web] Enrol needs A', 'Step 2: [Admin] Vet needs B', 'Step 1: [Web] Enrol needs C', 'Step 9: T needs Z'], titles)).toEqual([
+      'flow: x',
+      'Step 1: [Web] Enrol needs 2 inputs: A, C',
+      'Step 2: [Admin] Vet needs B',
+      'Step 9: T needs Z',
+    ]));
+  it('no errors: none', () => expect(foldMissing([], titles)).toEqual([]));
 });

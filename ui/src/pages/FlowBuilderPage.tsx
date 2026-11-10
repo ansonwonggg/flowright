@@ -5,7 +5,7 @@ import { useDialog } from '../components/Dialog.tsx';
 import { RunBar } from '../components/RunBar.tsx';
 import { fileNameOf, slugify } from '../lib/flowChart.ts';
 import { flatten, flowSummary, isIf, stepTitle } from '../../../src/flow.ts';
-import { stepErrors } from '../lib/flowChart.ts';
+import { foldMissing, stepErrors } from '../lib/flowChart.ts';
 import { draftFrom, flatIndexes, flowOf, groupOf, isDraftIf, newIf, newStep, removeKey, replaceStep, titleOf, type DraftItem } from '../lib/flowDraft.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
 import { DragSteps } from './DragSteps.tsx';
@@ -42,7 +42,9 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
   const checking = check.isPending || check.isPlaceholderData;
   const fnOf = (id: string) => meta.functions.find((f) => f.id === id);
   const at = flatIndexes(steps);
-  const titles = flatten(flow).map((s) => `${!isIf(s) && s.branch ? `${s.branch.arm === 'then' ? 'true' : 'false'} → ` : ''}${stepTitle(meta.functions, s)}`);
+  const flat = flatten(flow);
+  const titles = flat.map((s) => `${!isIf(s) && s.branch ? `${s.branch.arm === 'then' ? 'true' : 'false'} → ` : ''}${stepTitle(meta.functions, s)}`);
+  const problems = foldMissing(errors, flat.map((s) => stepTitle(meta.functions, s)));
   const named = title.trim() || fileName.trim();
   const runName = named || flowSummary(meta.functions, flow);
   const saveAs = fileName.trim() || slugify(title);
@@ -184,7 +186,7 @@ const FlowBuilder = ({ meta, initial }: { meta: Meta; initial?: Preset }) => {
         </div>
       )}
       <RunBar
-        problems={errors}
+        problems={problems}
         notes={[
           ...(live
             ? [

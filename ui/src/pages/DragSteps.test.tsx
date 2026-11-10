@@ -178,6 +178,26 @@ describe('DragSteps', () => {
     expect(within(tile(2)).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['b', 'c', '+1 more']);
   });
 
+  it('blank inputs are a to-do, not an error: one line with a count and three names, and Fill in opens the inputs', async () => {
+    const errors = ['Step 1: [Web] Create ER User needs A', 'Step 1: [Web] Create ER User needs B', 'Step 1: [Web] Create ER User needs C', 'Step 1: [Web] Create ER User needs D'];
+    render(<Harness steps={[step('create-user')]} errors={errors} />);
+    expect(tile(1)).toHaveClass('needs-input');
+    expect(tile(1)).not.toHaveClass('has-errors');
+    expect(within(tile(1)).queryByRole('list')).toBeNull();
+    expect(within(tile(1)).getByText('4 inputs to fill')).toBeInTheDocument();
+    expect(within(tile(1)).getByText('A, B, C and 1 more')).toBeInTheDocument();
+    await userEvent.click(within(tile(1)).getByRole('button', { name: 'Fill in' }));
+    expect(within(tile(1)).getByRole('button', { name: 'Hide' })).toHaveAttribute('aria-expanded', 'true');
+    expect(within(tile(1)).queryByRole('button', { name: 'Fill in' })).toBeNull();
+  });
+
+  it('one blank input says "1 input to fill"; other errors on the same step still list in red', () => {
+    render(<Harness steps={[step('create-user')]} errors={['Step 1: [Web] Create ER User needs A', 'Step 1: bad value']} />);
+    expect(tile(1)).toHaveClass('has-errors');
+    expect(within(tile(1)).getByText('1 input to fill')).toBeInTheDocument();
+    expect(within(tile(1)).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['bad value']);
+  });
+
   it('a step without errors has no error list', () => {
     render(<Harness steps={[step('create-user')]} />);
     expect(tile(1)).not.toHaveClass('has-errors');

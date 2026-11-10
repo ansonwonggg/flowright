@@ -206,6 +206,8 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .runbar-status.ok { color: var(--ok); } .runbar-status.ok .dot { background: var(--ok); box-shadow: 0 0 0 4px var(--ok-bg); }
 .runbar-status.bad { color: var(--bad); } .runbar-status.bad .dot { background: var(--bad); box-shadow: 0 0 0 4px var(--bad-bg); }
 .runbar-status.wait { color: var(--muted); } .runbar-status.wait .dot { animation: pulse 1s ease-in-out infinite alternate; }
+.runbar-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.runbar-status { flex: 1 1 260px; }
 .runbar-status .hint { font-weight: 450; display: inline; }
 @keyframes pulse { to { opacity: .3; } }
 .check.toggle { color: var(--muted); font-size: 13px; font-weight: 500; }
@@ -374,6 +376,12 @@ section.fn td:first-child, section.fn th:first-child { padding-left: 18px; }
 .node:hover .node-actions, .node-wrap.open .node-actions, .node-actions:focus-within { opacity: 1; }
 .node .hint { margin-left: 30px; }
 .node-errors { margin: 6px 0 0 30px; padding: 6px 10px 6px 24px; border-radius: 8px; background: var(--bad-bg); color: var(--bad); font-size: 12px; }
+.node.needs-input { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); border-left-color: var(--warn); }
+.node-todo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 0 30px; padding: 6px 6px 6px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 12px; }
+.node-todo .todo-count { font-weight: 700; }
+.node-todo .todo-names { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
+.node-todo .btn { background: var(--panel); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); font-weight: 650; }
+.linkish { padding: 0; border: none; background: none; color: inherit; font: inherit; font-weight: 650; text-decoration: underline; cursor: pointer; }
 .node-inputs { border: 1px solid var(--line); border-top: none; border-radius: 0 0 12px 12px; background: var(--panel); }
 .node-inputs .chain-step.bare { border: none; margin: 0; border-radius: 0 0 12px 12px; box-shadow: none; }
 

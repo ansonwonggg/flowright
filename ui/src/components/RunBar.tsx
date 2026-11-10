@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 /** Props of {@link RunBar}. */
 export type RunBarProps = {
-  /** Blocking problems from the input check. Any of them shows "Fix before running" with the list. */
+  /** Blocking problems from the input check. One is said in the bar; more are counted, listed above it on Show. */
   problems: string[];
   /** Non-blocking notes shown above the bar, e.g. another run in progress or a missing `.env.local` value. */
   notes?: ReactNode[];
@@ -22,22 +22,26 @@ export type RunBarProps = {
 
 /**
  * The bar pinned to the bottom of a run form: check status on the left, the browser toggle and the
- * buttons on the right. Notes and problems stack just above it, so they stay in view while the form
- * scrolls.
+ * buttons on the right. Notes stack just above it, so they stay in view while the form scrolls; the
+ * problem list joins them only when opened, so it never covers the form unasked.
  */
 export const RunBar = ({ problems, notes = [], checking, ready, readyHint, headed, onHeaded, children }: RunBarProps) => {
+  const [open, setOpen] = useState(false);
   const status = problems.length ? 'bad' : checking ? 'wait' : 'ok';
+  const many = problems.length > 1;
+  const listed = many && open;
+  const said = problems.length === 1 ? problems[0] : many ? `${problems.length} to fix` : checking ? 'Checking…' : `✓ ${ready}`;
   return (
     <div className="runbar" role="region" aria-label="Run">
       <div className="runbar-in">
-        {(notes.length > 0 || problems.length > 0) && (
+        {(notes.length > 0 || listed) && (
           <div className="runbar-notes">
             {notes.map((note, i) => (
               <div key={i} className="box warn">
                 {note}
               </div>
             ))}
-            {problems.length > 0 && (
+            {listed && (
               <div className="box bad">
                 <b>Fix before running</b>
                 <ul>
@@ -52,10 +56,15 @@ export const RunBar = ({ problems, notes = [], checking, ready, readyHint, heade
         <div className="runbar-row">
           <div className={`runbar-status ${status}`}>
             <span className="dot" />
-            <span>
-              {problems.length ? `${problems.length} to fix` : checking ? 'Checking…' : `✓ ${ready}`}
+            <span className="runbar-said">
+              {said}
               {status === 'ok' && readyHint && <span className="hint"> · {readyHint}</span>}
             </span>
+            {many && (
+              <button type="button" className="linkish" aria-expanded={open} onClick={() => setOpen(!open)}>
+                {open ? 'Hide' : 'Show'}
+              </button>
+            )}
           </div>
           <span className="spacer" />
           <label className="check toggle">

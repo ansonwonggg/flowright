@@ -24,12 +24,29 @@ describe('RunBar', () => {
     expect(screen.queryByText(/from the record/)).toBeNull();
   });
 
-  it('problems win over checking: counts them and lists each under "Fix before running"', () => {
+  it('one problem: said in the bar itself, no list above it', () => {
+    show({ problems: ['company is required'] });
+    expect(document.querySelector('.runbar-status')).toHaveTextContent('company is required');
+    expect(screen.queryByRole('list')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
+  });
+
+  it('problems win over checking: counts them; the list stays shut until Show, and Hide shuts it', async () => {
     show({ checking: true, problems: ['company is required', 'mobile is required'] });
     expect(screen.getByText('2 to fix')).toBeInTheDocument();
+    expect(screen.queryByText(/Ready to run|Checking/)).toBeNull();
+    expect(screen.queryByRole('list')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Show' }));
     expect(screen.getByText('Fix before running')).toBeInTheDocument();
     expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['company is required', 'mobile is required']);
-    expect(screen.queryByText(/Ready to run/)).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Hide' }));
+    expect(screen.queryByRole('list')).toBeNull();
+  });
+
+  it('notes and a shut list: the notes still show', () => {
+    show({ problems: ['a', 'b'], notes: ['"Create" is running.'] });
+    expect(screen.getByText('"Create" is running.')).toBeInTheDocument();
+    expect(screen.queryByRole('list')).toBeNull();
   });
 
   it('shows every note above the bar', () => {
