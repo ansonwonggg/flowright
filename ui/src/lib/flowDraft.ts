@@ -107,8 +107,20 @@ export const flowOf = (items: DraftItem[], fields: FieldJson[], title?: string, 
 
 export const flowOfRun = (run: FlowRun, fns: Fn[], fields: FieldJson[]): FlowDef => {
   const isSecret = (name: string) => fieldOf(fields, name)?.kind === 'secret';
+  const asTyped = (name: string, value: unknown): unknown => {
+    if (fieldOf(fields, name)?.kind !== 'json' || typeof value !== 'string') return value;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  };
   const stepOf = (step: FlatFn): FnStep => {
-    const values = Object.fromEntries(Object.entries(step.values ?? {}).filter(([name]) => !isSecret(name)));
+    const values = Object.fromEntries(
+      Object.entries(step.values ?? {})
+        .filter(([name]) => !isSecret(name))
+        .map(([name, value]) => [name, asTyped(name, value)]),
+    );
     return { function: step.function, ...(Object.keys(values).length && { values }) };
   };
   const flat = run.steps ?? [];

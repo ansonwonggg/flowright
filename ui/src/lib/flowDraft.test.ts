@@ -383,6 +383,16 @@ describe('flowOfRun', () => {
   it('a step whose branch points at no IF stays where it was, at the top', () =>
     expect(flowOfRun(ran([{ function: 'vet-datamod', title: 'Vet', branch: { at: 5, arm: 'then' }, status: 'waiting' }]), FUNCTIONS, FIELDS).steps).toEqual([{ function: 'vet-datamod' }]));
 
+  it('a JSON input the run kept as text comes back as the object, as a flow file writes it', () =>
+    expect(flowOfRun(ran([{ function: 'create-user', title: 'C', values: { user_spec: '{"company":"Acme"}' }, status: 'stopped' }] as unknown as FlowRunStep[]), FUNCTIONS, FIELDS).steps).toEqual([
+      { function: 'create-user', values: { user_spec: { company: 'Acme' } } },
+    ]));
+
+  it('JSON text that does not parse, or a text field that looks like JSON, stays as it was', () =>
+    expect(
+      flowOfRun(ran([{ function: 'activate-api', title: 'A', values: { user_spec: '{oops', username: '{"a":1}' }, status: 'waiting' }] as unknown as FlowRunStep[]), FUNCTIONS, FIELDS).steps,
+    ).toEqual([{ function: 'activate-api', values: { user_spec: '{oops', username: '{"a":1}' } }]));
+
   it('drops secret values, so a rerun asks for them again; other values stay', () =>
     expect(flowOfRun(ran([{ function: 'activate-api', title: 'A', values: { password: 'p4ss', username: 'etoe.1' }, status: 'waiting' }]), FUNCTIONS, FIELDS).steps).toEqual([
       { function: 'activate-api', values: { username: 'etoe.1' } },

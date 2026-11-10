@@ -308,12 +308,12 @@ describe('FlowBuilderPage from an earlier flow run', () => {
     status: 'failed',
     values: {},
     steps: [
-      { function: 'create-user', title: '[Web] Create ER User', status: 'passed', values: { user_spec: { creator: 'ER', userType: 'Company AP', company: 'Acme' } }, runId: 'r1' },
+      { function: 'create-user', title: '[Web] Create ER User', status: 'passed', values: { user_spec: '{"creator":"ER","userType":"Company AP","company":"Acme"}' }, runId: 'r1' } as unknown as FlowRun['steps'][number],
       { function: 'activate-api', title: '[API] Activate', status: 'failed', values: { mobile: '91234567', password: 'p4ss' }, runId: 'r2' },
     ],
   };
 
-  it('opens with its steps, typed values and name, secrets left blank', async () => {
+  it('opens with its steps, typed values (JSON kept as text included) and name, secrets left blank', async () => {
     flowRuns = { [earlier.id]: earlier };
     page(`/flow-builder?run=${earlier.id}`);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New ER user');
