@@ -1,6 +1,6 @@
 {
   "name": "@ansonwonggg/flowright",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Typed steps, functions and flows for Playwright automation that crosses apps — with records, a checked pattern, a reporter and a local app to run it all.",
   "keywords": [
     "playwright",
