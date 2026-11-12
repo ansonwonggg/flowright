@@ -49,12 +49,13 @@ export const playwrightExec =
  *
  * @param exec - default {@link playwrightExec}; tests pass a fake.
  * @param onChange - called with the run after every change, e.g. to print progress.
+ * @param file - the saved flow file, from `root`, kept on the run so the app can show it as that flow's last run.
  */
 export const runFlow = async (
   root: string,
   fns: FunctionMeta[],
   flow: FlowDef,
-  options: { name?: string; exec?: Exec; headed?: boolean; onChange?: (run: FlowRun) => void; now?: () => number } = {},
+  options: { name?: string; file?: string; exec?: Exec; headed?: boolean; onChange?: (run: FlowRun) => void; now?: () => number } = {},
 ): Promise<FlowRun> => {
   const now = options.now ?? Date.now;
   const id = newRunId(new Date(now()));
@@ -63,7 +64,7 @@ export const runFlow = async (
     writeFlowRun(run, root);
     options.onChange?.(run);
   };
-  let run = newFlowRun(fns, flow, { id, name: options.name ?? flow.title ?? 'flow', now: now() });
+  let run = newFlowRun(fns, flow, { id, name: options.name ?? flow.title ?? 'flow', now: now(), file: options.file });
   save(run);
   for (let i = nextStepIndex(run); i >= 0; i = nextStepIndex(run)) {
     const step = fnStepAt(run, i);

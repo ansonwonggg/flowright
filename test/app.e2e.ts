@@ -54,6 +54,7 @@ describe('flowkit app on the example repo', { timeout: 240_000 }, () => {
     const presets = await get('/api/presets');
     assert.deepEqual(presets.fields.user_spec.map((p: { label: string; summary: string }) => [p.label, p.summary]), [['company-ap', 'Company AP for Acme']]);
     assert.deepEqual(presets.flows.map((f: { label: string }) => f.label), ['New ER user (kiosk)', 'New ER user (web)', 'New member']);
+    for (const f of presets.flows) assert.ok(Number.isFinite(f.modifiedAt) && f.modifiedAt > 0, `${f.file} has a modified time`);
   });
 
   it('runs a function, keeps it in history with the record it made, then fills the next one from that record', async () => {
@@ -69,6 +70,22 @@ describe('flowkit app on the example repo', { timeout: 240_000 }, () => {
     assert.deepEqual(check.body.fromRecord.sort(), ['id_number', 'mobile']);
     const records = await get('/api/records');
     assert.deepEqual(records.find((r: { key: string }) => r.key === ref).functions.map((n: { id: string }) => n.id).sort(), ['activate-er-user-kiosk', 'activate-er-user-web', 'vet-er-user']);
+  });
+
+  it('a flow run started from a saved flow keeps its file; one claiming a file that is not saved keeps none', async () => {
+    const presets = await get('/api/presets');
+    const saved = presets.flows.find((f: { file: string }) => f.file === 'config/flows/new-er-user.flow.json');
+    const one = { title: 'Just create', steps: [saved.spec.steps[0]] };
+    const runOf = async (file: string) => {
+      const started = await post('/api/flow/run', { name: 'Just create', flow: one, headed: false, file });
+      assert.equal(started.status, 202, JSON.stringify(started.body));
+      return waitFor(() => get(`/api/flow-runs/${started.body.id}`), (r) => r?.status && r.status !== 'running', 120_000);
+    };
+    const linked = await runOf(saved.file);
+    assert.equal(linked.file, saved.file);
+    assert.equal((await runOf('config/flows/not-saved.flow.json')).file, undefined);
+    const listed = await get('/api/flow-runs');
+    assert.equal(listed.find((r: { id: string }) => r.id === linked.id)?.file, saved.file, 'kept on disk, not only in memory');
   });
 
   it('refuses bad inputs before anything runs', async () => {

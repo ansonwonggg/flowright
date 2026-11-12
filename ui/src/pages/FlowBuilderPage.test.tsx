@@ -332,8 +332,50 @@ describe('FlowBuilderPage from an earlier flow run', () => {
     expect(start.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ name: 'New ER user' }));
   });
 
+  it('a run of a saved flow runs again as that flow, so it counts as its last run', async () => {
+    savedFlows = [{ file: 'config/flows/new-er-user.flow.json', label: 'New ER user', summary: '', spec: { steps: [{ function: 'create-user' }] } }];
+    flowRuns = { [earlier.id]: { ...earlier, file: 'config/flows/new-er-user.flow.json' } };
+    start.mutateAsync.mockResolvedValue({ id: 'new' });
+    page(`/flow-builder?run=${earlier.id}`);
+    await userEvent.click(screen.getByRole('button', { name: 'Run the flow' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start' }));
+    expect(start.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ file: 'config/flows/new-er-user.flow.json' }));
+  });
+
+  it('a run whose saved flow is gone runs with no file', async () => {
+    flowRuns = { [earlier.id]: { ...earlier, file: 'config/flows/deleted.flow.json' } };
+    start.mutateAsync.mockResolvedValue({ id: 'new' });
+    page(`/flow-builder?run=${earlier.id}`);
+    await userEvent.click(screen.getByRole('button', { name: 'Run the flow' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start' }));
+    expect(start.mutateAsync.mock.calls[0][0].file).toBeUndefined();
+  });
+
   it('a run it cannot load says so', () => {
     page('/flow-builder?run=20261105-110000-zzzz');
     expect(screen.getByText('No such flow run.')).toBeInTheDocument();
+  });
+});
+
+describe('FlowBuilderPage links a run to its saved flow', () => {
+  const startRun = async () => {
+    start.mutateAsync.mockResolvedValue({ id: 'new' });
+    await userEvent.click(screen.getByRole('button', { name: 'Run the flow' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start' }));
+    return start.mutateAsync.mock.calls[0][0] as { file?: string };
+  };
+
+  it('a saved flow opened in the builder runs with its file', async () => {
+    savedFlows = [{ file: 'config/flows/er/pair.flow.json', label: 'ER pair', summary: '', spec: { steps: [{ function: 'vet-datamod', values: { reference_no: 'DMD1' } }] } }];
+    page('/flow-builder?preset=config%2Fflows%2Fer%2Fpair.flow.json');
+    expect((await startRun()).file).toBe('config/flows/er/pair.flow.json');
+  });
+
+  it('a new flow that was never saved runs with no file', async () => {
+    savedFlows = [{ file: 'config/flows/other.flow.json', label: 'Other', summary: '', spec: { steps: [] } }];
+    page();
+    await userEvent.selectOptions(screen.getByLabelText('First step'), 'vet-datamod');
+    await userEvent.type(screen.getByLabelText(/DataMod ref/), 'DMD1');
+    expect((await startRun()).file).toBeUndefined();
   });
 });

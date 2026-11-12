@@ -330,6 +330,39 @@ tr.click:hover td { background: var(--raised); }
 .detail td { background: var(--raised); }
 .filters { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
 .filters input { flex: 1; min-width: 180px; background: var(--panel); }
+.flowtable { table-layout: fixed; }
+.flowtable td { vertical-align: middle; }
+.flowtable .col-name { width: 26%; }
+.flowtable .col-group { width: 13%; }
+.flowtable .col-lastRun { width: 21%; }
+.flowtable .col-modified { width: 14%; }
+.flowtable td.strong { overflow-wrap: anywhere; }
+.flowtable td.strong a { color: var(--ink); }
+.flowtable td.strong a:hover { color: var(--accent); }
+.sorter { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; padding: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.sorter:hover, .sorter.on { color: var(--ink); }
+.sorter:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+.sort-arrow { font-size: 9px; color: var(--faint); }
+.sorter.on .sort-arrow { color: var(--accent); }
+.flow-steps { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.flow-steps .count { flex: none; min-width: 22px; text-align: center; font-size: 12px; font-weight: 650; padding: 1px 6px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+.flow-steps .chainline { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12.5px; }
+.lastrun { display: inline-flex; align-items: center; gap: 8px; color: inherit; }
+.lastrun:hover { text-decoration: none; }
+.lastrun:hover .muted { color: var(--accent); }
+.more-runs { margin-top: 10px; }
+@media (max-width: 760px) {
+  .flowtable .col-group, .flowtable td:nth-child(2), .flowtable .col-modified, .flowtable td:nth-child(5) { display: none; }
+  .flowtable .col-name { width: 40%; }
+  .flowtable .col-lastRun { width: 34%; }
+  .flowtable td.nowrap { white-space: normal; }
+  .lastrun { flex-wrap: wrap; gap: 2px 8px; }
+}
+@media (max-width: 520px) {
+  .flowtable .col-steps, .flowtable td:nth-child(3) { display: none; }
+  .flowtable .col-name { width: 55%; }
+  .flowtable .col-lastRun { width: 45%; }
+}
 section.fn { padding: 0; overflow: hidden; }
 section.fn table { margin: 0 0 4px; table-layout: fixed; }
 section.fn th:nth-child(1) { width: 24%; } section.fn th:nth-child(3) { width: 13%; } section.fn th:nth-child(4) { width: 17%; }

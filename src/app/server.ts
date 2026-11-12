@@ -15,7 +15,7 @@ import { describeRecord, functionsOn, listRecordViews, recordDetails, type Recor
 import type { AppContext, Option, Preset } from '../settings.ts';
 import { localEnv, missingEnv, withoutEnv } from './env.ts';
 import { cleanFlow, filledInputs, inputProblems, presetPath, summarize } from './inputs.ts';
-import { flowLabel, listPresets } from './presets.ts';
+import { flowLabel, listPresets, savedFlowFile } from './presets.ts';
 
 const HOST = '127.0.0.1';
 const MAX_LOG = 5000;
@@ -79,8 +79,16 @@ const readFlowFile = (full: string): FlowDef | undefined => {
 
 const presetFields = () => Object.entries(FIELDS).flatMap(([name, f]) => (f.kind === 'json' && f.presets ? [{ name, field: f, folder: f.presets }] : []));
 
+const modifiedAt = (full: string): number | undefined => {
+  try {
+    return statSync(full).mtimeMs;
+  } catch {
+    return undefined;
+  }
+};
+
 const flowFiles = () =>
-  findFiles(path.join(ROOT, 'config/flows'), '.flow.json').map((full) => ({ file: path.relative(ROOT, full), spec: readFlowFile(full) }));
+  findFiles(path.join(ROOT, 'config/flows'), '.flow.json').map((full) => ({ file: path.relative(ROOT, full), spec: readFlowFile(full), modifiedAt: modifiedAt(full) }));
 
 const presets = () => ({
   fields: Object.fromEntries(
@@ -89,9 +97,7 @@ const presets = () => ({
       listPresets(folder, ROOT).map((p) => ({ file: p.file, label: p.label, summary: p.value === undefined ? '(not valid JSON)' : (field.describe?.(p.value as never) ?? ''), spec: p.value })),
     ]),
   ),
-  flows: flowFiles().map(({ file, spec }) => {
-    return { file, label: flowLabel(file, spec), summary: flowSummary(METAS, spec), spec };
-  }),
+  flows: flowFiles().map(({ file, spec, modifiedAt }) => ({ file, label: flowLabel(file, spec), summary: flowSummary(METAS, spec), spec, modifiedAt })),
 });
 
 const recordOptions = (all: RecordView[]): Record<string, Option[]> =>
@@ -427,7 +433,8 @@ const postFlowRun: Handler = async (req, res) => {
   const errors = flowProblems(METAS, FIELDS, def);
   if (errors.length) return json(res, 400, { error: `The flow can't run:\n- ${errors.join('\n- ')}` });
   const name = (typeof b.name === 'string' && b.name.trim()) || def.title || flowSummary(METAS, def);
-  flow = { ...newFlowRun(METAS, def, { id: newRunId(), name, now: Date.now() }), headed: b.headed === true };
+  const file = savedFlowFile(b.file, flowFiles().map((f) => f.file));
+  flow = { ...newFlowRun(METAS, def, { id: newRunId(), name, now: Date.now(), file }), headed: b.headed === true };
   advanceFlow();
   return json(res, 202, { id: flow.id });
 };

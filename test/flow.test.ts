@@ -112,6 +112,11 @@ describe('flow run', () => {
     assert.deepEqual(run.steps.map((s) => [s.title, s.status]), [['create', 'waiting'], ['vet', 'waiting'], ['activate', 'waiting']]);
     assert.equal(newFlowRun(FNS, { steps: [{ function: 'x' }] }, { id: 'r', name: 'n', now: 1 }).steps[0].title, 'x');
   });
+  it('keeps the saved flow file it came from; none or blank keeps no file', () => {
+    assert.equal(newFlowRun(FNS, WEB, { id: 'r', name: 'web', now: 1, file: 'config/flows/web.flow.json' }).file, 'config/flows/web.flow.json');
+    assert.equal('file' in fresh(), false);
+    assert.equal('file' in newFlowRun(FNS, WEB, { id: 'r', name: 'web', now: 1, file: '' }), false);
+  });
   it('runs in turn, passing outputs on, then passes', () => {
     let run = fresh();
     assert.equal(nextStepIndex(run), 0);

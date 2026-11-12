@@ -9,7 +9,8 @@ export type Fn = FunctionMeta & { file: string };
 
 export type Meta = { functions: Fn[]; fields: FieldJson[]; settings: KitSettings; options: Record<string, Option[]> };
 
-export type Preset = { file: string; label: string; summary: string; spec: unknown };
+/** A saved value or flow. `modifiedAt` (ms since epoch) is when its file last changed; sent for flows only. */
+export type Preset = { file: string; label: string; summary: string; spec: unknown; modifiedAt?: number };
 
 /** Saved values: of each JSON field with a presets folder, by field name, and saved flows. */
 export type Presets = { fields: Record<string, Preset[]>; flows: Preset[] };
@@ -73,7 +74,7 @@ export const api = {
   stop: () => post<{ id: string }>('/api/run/stop', {}),
   savePreset: (body: { field: string; name: string; value: unknown; overwrite: boolean }) => post<{ file: string }>('/api/presets', body),
   checkFlow: (flow: FlowDef) => post<{ errors: string[]; warnings: string[] }>('/api/flow/check', { flow }),
-  startFlow: (body: { name: string; flow: FlowDef; headed: boolean }) => post<{ id: string }>('/api/flow/run', body),
+  startFlow: (body: { name: string; flow: FlowDef; headed: boolean; file?: string }) => post<{ id: string }>('/api/flow/run', body),
   saveFlow: (body: { name: string; flow: FlowDef; overwrite: boolean }) => post<{ file: string }>('/api/flows', body),
   flowRuns: () => request<FlowRun[]>('/api/flow-runs'),
   flowRun: (id: string) => request<FlowRun>(`/api/flow-runs/${encodeURIComponent(id)}`),

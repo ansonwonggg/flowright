@@ -6,6 +6,7 @@ import { describe, it } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { findFiles, loadRepo, manifestOf } from '../src/discover.ts';
 import type { FunctionMeta } from '../src/fn.ts';
+import { readFlowRun } from '../src/flowRuns.ts';
 import type { Values } from '../src/io.ts';
 import { runFlow } from '../src/runner.ts';
 
@@ -216,5 +217,14 @@ describe('runFlow with a fake exec', () => {
     const exec = async () => ({ status: 'passed' as const });
     assert.equal((await runFlow(root, metas.slice(0, 1), { steps: [{ function: 'a' }] }, { exec })).name, 'flow');
     assert.equal((await runFlow(root, metas.slice(0, 1), { steps: [{ function: 'a' }] }, { exec, name: 'N' })).name, 'N');
+  });
+
+  it('keeps the saved flow file it was given on the run it writes; none given, none kept', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'flowkit-'));
+    const exec = async () => ({ status: 'passed' as const });
+    const withFile = await runFlow(root, metas.slice(0, 1), { steps: [{ function: 'a' }] }, { exec, file: 'config/flows/x.flow.json' });
+    assert.equal(withFile.file, 'config/flows/x.flow.json');
+    assert.equal(readFlowRun(withFile.id, root)?.file, 'config/flows/x.flow.json');
+    assert.equal('file' in (await runFlow(root, metas.slice(0, 1), { steps: [{ function: 'a' }] }, { exec })), false);
   });
 });

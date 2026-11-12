@@ -4,7 +4,7 @@ import path from 'node:path';
 import { describe, it as test } from 'node:test';
 import { needsBuild } from '../src/app/build.ts';
 import { localEnv, missingEnv, withoutEnv } from '../src/app/env.ts';
-import { flowLabel, listPresets } from '../src/app/presets.ts';
+import { flowLabel, listPresets, savedFlowFile } from '../src/app/presets.ts';
 import { field } from '../src/fields.ts';
 import type { FunctionMeta } from '../src/fn.ts';
 import { expect } from './expect.ts';
@@ -111,4 +111,15 @@ describe('flowLabel', () => {
     expect(flowLabel('config/flows/a.flow.json', null)).toBe('a');
     expect(flowLabel('config/flows/a.flow.json', ['x'])).toBe('a');
   });
+});
+
+describe('savedFlowFile', () => {
+  const files = ['config/flows/a.flow.json', 'config/flows/er/b.flow.json'];
+  test('a saved file, in a sub-folder too', () => {
+    expect(savedFlowFile('config/flows/a.flow.json', files)).toBe('config/flows/a.flow.json');
+    expect(savedFlowFile('config/flows/er/b.flow.json', files)).toBe('config/flows/er/b.flow.json');
+  });
+  for (const bad of ['config/flows/gone.flow.json', 'a', 'config/flows/../flows/a.flow.json', ' config/flows/a.flow.json', '', undefined, null, 5, ['config/flows/a.flow.json']])
+    test(`refuses ${JSON.stringify(bad)}`, () => expect(savedFlowFile(bad, files)).toBeUndefined());
+  test('no saved flows: refuses everything', () => expect(savedFlowFile('config/flows/a.flow.json', [])).toBeUndefined());
 });

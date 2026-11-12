@@ -48,6 +48,7 @@ const FlowBuilder = ({ meta, initial, flows }: { meta: Meta; initial?: Preset; f
   const named = title.trim() || fileName.trim();
   const runName = named || flowSummary(meta.functions, flow);
   const saveAs = fileName.trim() || slugify(title);
+  const savedFile = flows?.find((f) => f.file === `config/flows/${saveAs}.flow.json`)?.file;
   const kinds = Object.values(meta.settings.records).map((r) => r.label);
   const offered = meta.functions;
 
@@ -64,7 +65,7 @@ const FlowBuilder = ({ meta, initial, flows }: { meta: Meta; initial?: Preset; f
     );
     if (!(await confirm({ title: named ? `Start ${named}?` : 'Start this flow?', body, ok: 'Start' }))) return;
     try {
-      const { id } = await start.mutateAsync({ name: runName, flow, headed });
+      const { id } = await start.mutateAsync({ name: runName, flow, headed, file: savedFile });
       navigate(`/flow-run/${id}`);
     } catch (e) {
       await notify('Could not start the flow', (e as Error).message);
@@ -218,7 +219,7 @@ const FromFlowRun = ({ id, meta, flows }: { id: string; meta: Meta; flows: Prese
   if (error) return <div className="empty">{error.message}</div>;
   if (isPending) return <div className="empty">Loading…</div>;
   const spec = flowOfRun(run, meta.functions, meta.fields);
-  return <FlowBuilder key={`run:${id}`} meta={meta} initial={{ file: '', label: run.name, summary: '', spec }} flows={flows} />;
+  return <FlowBuilder key={`run:${id}`} meta={meta} initial={{ file: run.file ?? '', label: run.name, summary: '', spec }} flows={flows} />;
 };
 
 export const FlowBuilderPage = () => {

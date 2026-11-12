@@ -29,6 +29,7 @@ Status: pre-1.0. The pattern is stable; the API may still change between minor v
 | Presets belong to a field (`presets: 'users'`) | A preset is a saved value of one JSON field; tying the folder to the field lets the app find, describe and validate presets with no list of its own. |
 | A `.cts` reporter entry beside the `.ts` one | A CommonJS Playwright config makes Playwright load flowright's files as CommonJS; an ES module reporter importing the same files then breaks on named imports. `flowkitReporters` picks the entry that matches how the config was loaded. |
 | CLI flow runs go to `out/flow-runs/`, as app flow runs do | One list in the app, whoever started the run. |
+| A flow run keeps the saved flow file it started from (`file`), checked against `config/flows/` | The Flows list shows and sorts by each flow's last run. The run's name is free text, so matching by name would guess; runs from before 0.1.7 have no file and show as never run. |
 
 ## Settled
 

@@ -70,9 +70,9 @@ const pairs = (args: string[]) =>
     args.filter((a) => !a.startsWith('--') && a.includes('=')).map((a) => [a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1)]),
   );
 
-const flowOf = (repo: Repo, target: string, args: string[]): { flow: FlowDef; name: string } => {
+const flowOf = (repo: Repo, target: string, args: string[]): { flow: FlowDef; name: string; file?: string } => {
   if (repo.functions.some((f) => f.def.id === target) && !existsSync(target)) return { flow: { steps: [{ function: target, values: pairs(args) }] }, name: target };
-  return { flow: JSON.parse(readFileSync(target, 'utf8')) as FlowDef, name: path.basename(target) };
+  return { flow: JSON.parse(readFileSync(target, 'utf8')) as FlowDef, name: path.basename(target), file: path.relative(repo.root, path.resolve(target)) };
 };
 
 const records = (repo: Repo) => {
@@ -85,7 +85,7 @@ const records = (repo: Repo) => {
 };
 
 const run = async (repo: Repo, target: string, args: string[]) => {
-  const { flow, name } = flowOf(repo, target, args);
+  const { flow, name, file } = flowOf(repo, target, args);
   const headed = args.includes('--headed');
   const metas = repo.functions.map((f) => metaOf(f.def));
   const problems = flowProblems(metas, repo.fields, flow);
@@ -93,7 +93,7 @@ const run = async (repo: Repo, target: string, args: string[]) => {
     for (const p of problems) console.log(`✗ ${p}`);
     return 1;
   }
-  const result = await runFlow(repo.root, metas, flow, { name: flow.title ?? name, headed, onChange: (r) => printRun(repo, r) });
+  const result = await runFlow(repo.root, metas, flow, { name: flow.title ?? name, file, headed, onChange: (r) => printRun(repo, r) });
   console.log(`\nflow ${result.status}. Values: ${JSON.stringify(masked(repo.fields, result.values))}`);
   return result.status === 'passed' ? 0 : 1;
 };

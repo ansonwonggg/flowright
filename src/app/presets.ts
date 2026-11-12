@@ -38,3 +38,9 @@ export const flowLabel = (file: string, spec: unknown): string => {
   if (typeof title === 'string' && title.trim()) return title.trim();
   return file.replace(/^config\/flows\//, '').replace(/\.flow\.json$/, '');
 };
+
+/**
+ * `given` when it is exactly one of the saved flow `files` (from the repo root), else `undefined`. A page sends
+ * the file a run came from; this keeps a run from claiming a flow that doesn't exist.
+ */
+export const savedFlowFile = (given: unknown, files: string[]): string | undefined => (typeof given === 'string' && files.includes(given) ? given : undefined);
