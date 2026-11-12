@@ -30,6 +30,10 @@ Status: pre-1.0. The pattern is stable; the API may still change between minor v
 | A `.cts` reporter entry beside the `.ts` one | A CommonJS Playwright config makes Playwright load flowright's files as CommonJS; an ES module reporter importing the same files then breaks on named imports. `flowkitReporters` picks the entry that matches how the config was loaded. |
 | CLI flow runs go to `out/flow-runs/`, as app flow runs do | One list in the app, whoever started the run. |
 | A flow run keeps the saved flow file it started from (`file`), checked against `config/flows/` | The Flows list shows and sorts by each flow's last run. The run's name is free text, so matching by name would guess; runs from before 0.1.7 have no file and show as never run. |
+| An environment is a `.env.<name>.local` over `.env.local`, chosen per run | Testing the same flows on another system (DEV down, try UAT) should change values, not flows. Files keep secrets out of git and out of the page; the app shows them read-only, since editing would mean a write endpoint for secrets. The shell still wins, as dotenv leaves a var that exists. |
+| Secrets on the Environments page are judged by name, not declared | The repo's `.env` files hold vars no field declares (hosts, admin logins). The last word of the name (`_PASSWORD`, `_KEY`, `_TOKEN`…) catches them without a list to keep, and `_TOKEN_URL` stays visible. |
+| The app passes the environment's vars to each run itself | It works with a repo's existing `dotenv.config` (which doesn't override), so switching needs no change to the repo's Playwright config. `loadEnvironment` is only for configs started without the app or CLI. |
+| The app refuses other hosts, and changes from other origins | It runs things on real systems with the tester's accounts; a web page must not be able to start a run or read a host through DNS rebinding. |
 
 ## Settled
 
@@ -48,3 +52,4 @@ Status: pre-1.0. The pattern is stable; the API may still change between minor v
 - No JSON Schema for flow files yet.
 - The generator takes flags only; there is no question-and-answer mode for testers yet.
 - Playwright's HTML reporter still writes a report folder for `--list`; the run itself isn't kept in history.
+- Records are shared across environments: a ref made on one is offered (and filled from) on another.

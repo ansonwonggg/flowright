@@ -193,6 +193,34 @@ prints the records the run made or changed, the functions to run on them next wi
 and on failure what kind it was and what to do. It keeps each run that includes a function in
 `out/runs/<id>/` (`run.json`, `log.txt`, `report/`), which the app's History reads.
 
+## Environments
+
+Each `.env.<name>.local` in the repo root is an environment (`.env.dev.local`, `.env.uat.local`, …). A run
+in one sees `.env.local`, then that file over it, then the shell over both: put what every environment
+shares in `.env.local` and only what differs (hosts, accounts) in the environment file. Flows, functions
+and presets stay the same; only the values change.
+
+- Pick one with `--env <name>` on `run` and `app`, or `FLOWKIT_ENV=<name>`. With none, runs use
+  `.env.local` alone, as before. A name with no file stops the run before anything starts; a run never
+  falls back to another environment.
+- The app has an **Env** switch in its top bar (locked while a run goes) and an **Environments** page
+  listing every var of each, with the file it comes from. It only shows them; edit the files in your
+  editor. Secrets (a name ending in `_PASSWORD`, `_SECRET`, `_KEY`, `_TOKEN`, `_PASSWD`, `_PWD`,
+  `_CREDENTIAL(S)` or `_PASSPHRASE`) never leave the server: the page says only whether they are set.
+- `npx flowright envs <root> [<name>]` prints the same in the terminal.
+- Each run keeps the environment it used (`env` in `run.json` and the flow run), shown on its page and in
+  History.
+- The app and `flowright run` hand the vars to each run. A Playwright config started on its own loads them
+  with `loadEnvironment`, in place of `dotenv.config`:
+
+```ts
+import { flowkitProjects, flowkitReporters, loadEnvironment } from '@ansonwonggg/flowright/playwright';
+
+loadEnvironment(import.meta.dirname); // reads FLOWKIT_ENV; sets only vars the shell hasn't
+```
+
+Records are not split by environment yet: a record made on one is offered on every other.
+
 ## Kit settings
 
 `createKit(fields, { … })` also takes what the reporter and the app show for this repo:
@@ -255,6 +283,9 @@ A select may give `labels` for its options.
 
 One run at a time.
 
+The app answers only requests addressed to `localhost` / `127.0.0.1`, and takes changes (runs, saves, the
+environment) only from its own page, so another site open in the browser can't drive it.
+
 `reporter.cts` exists for repos whose Playwright config is CommonJS (no `"type": "module"`): there
 Playwright loads flowright's files as CommonJS, so the reporter has to be loaded the same way, or its named
 imports break. `flowkitReporters` picks the right entry.
@@ -265,14 +296,15 @@ imports break. `flowkitReporters` picks the right entry.
 |---|---|
 | `npx flowright list <root>` | functions with their inputs (`*` = required) and outputs, steps, flows |
 | `npx flowright check <root>` | every pattern problem; exits 1 when there is one |
-| `npx flowright run <root> <file.flow.json> [--headed]` | run a flow, one Playwright run per function; kept in `<root>/out/flow-runs/` |
-| `npx flowright run <root> <function> [name=value …]` | run one function; inputs not given come from its record |
+| `npx flowright run <root> <file.flow.json> [--headed] [--env <name>]` | run a flow, one Playwright run per function; kept in `<root>/out/flow-runs/` |
+| `npx flowright run <root> <function> [name=value …] [--env <name>]` | run one function; inputs not given come from its record |
+| `npx flowright envs <root> [<name>]` | the environments, or one's vars with secrets hidden |
 | `npx flowright records <root>` | the records, newest first, with their history |
 | `npx flowright new step <root> <area>/<name> [--portal web]` | a step file that fails until it is built |
 | `npx flowright new function <root> <area>/<id> --title "…" [--record kind] [--starts] [--inputs a,b] [--optional c] [--outputs x,y]` | a function file; names are checked against the registry, with "did you mean"; a record's key is added for you |
 | `npx flowright new flow <root> <name> <function> …` | a flow file with blanks for the values it still needs, and a list of them |
 | `npx flowright manifest <root>` | the repo as JSON, for the config and an app |
-| `npx flowright app <root> [--port 4321] [--data <dir>] [--no-open]` | the app |
+| `npx flowright app <root> [--port 4321] [--data <dir>] [--env <name>] [--no-open]` | the app |
 
 ## What `check` enforces
 
