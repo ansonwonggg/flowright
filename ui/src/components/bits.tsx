@@ -22,6 +22,13 @@ export const ReportLink = ({ runId }: { runId: string }) => (
 );
 
 /** A record stage as a chip: green when no function is left to run on it, amber otherwise. */
+/** The environment a run used, e.g. `uat`. */
+export const EnvChip = ({ env }: { env: string }) => (
+  <span className="chip env-chip" title="Environment">
+    {env}
+  </span>
+);
+
 export const StageChip = ({ label }: { label: string }) => <span className="chip">{label}</span>;
 
 /** A record kind in words, from the kit's settings; the kind itself when there is no label or no meta yet. */
@@ -105,6 +112,12 @@ export const HistoryTable = ({ runs, onOpen }: { runs: HistoryItem[]; onOpen: (i
             <b>
               <FnTitle title={r.title} />
             </b>
+            {r.env && (
+              <>
+                {' '}
+                <EnvChip env={r.env} />
+              </>
+            )}
           </td>
           <td>
             {r.summary}

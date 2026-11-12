@@ -23,6 +23,7 @@ export type RunRecordRef = { kind: string; ref: string; stage: string; stageLabe
  * - `project` is the function id; `title` its title when the run started.
  * - `input` is the function's named inputs as the run got them (`FLOWKIT_INPUT`), with secrets masked.
  *   Runs from before flowkit kept a file path here instead; readers must treat a non-object as `{}`.
+ * - `env` is the environment the run used (`FLOWKIT_ENV`); absent when it used `.env.local` alone.
  */
 export type RunRecord = {
   id: string;
@@ -32,6 +33,7 @@ export type RunRecord = {
   endedAt?: number;
   status: RunStatus;
   input: Record<string, string>;
+  env?: string;
   headed: boolean;
   view: RunView;
   records: RunRecordRef[];

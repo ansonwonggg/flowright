@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { duration } from './lib/format.ts';
 import { useNow } from './lib/hooks.ts';
 import { useLiveEvents } from './live.ts';
+import { EnvPicker } from './components/EnvPicker.tsx';
 import { useLive, useMeta } from './queries.ts';
 
 const LivePill = () => {
@@ -54,8 +55,12 @@ export const App = () => {
           <NavLink to="/records" className={({ isActive }) => (isActive ? 'on' : '')}>
             Records
           </NavLink>
+          <NavLink to="/environments" className={({ isActive }) => (isActive ? 'on' : '')}>
+            Environments
+          </NavLink>
         </nav>
         <span className="spacer" />
+        <EnvPicker />
         <LivePill />
         {!connected && <span className="offline">Lost the app server, retrying… (is flowright app still running?)</span>}
       </header>

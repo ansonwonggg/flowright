@@ -7,11 +7,12 @@ import { fileNameOf, slugify } from '../lib/flowChart.ts';
 import { flatten, flowSummary, isIf, stepTitle } from '../../../src/flow.ts';
 import { foldMissing, stepErrors } from '../lib/flowChart.ts';
 import { draftFrom, flatIndexes, flowOf, flowOfRun, groupOf, isDraftIf, newIf, newStep, removeKey, replaceStep, titleOf, type DraftItem } from '../lib/flowDraft.ts';
+import { targetOf } from '../lib/environment.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
 import { DragSteps } from './DragSteps.tsx';
 import { AddFunction, IfCard } from './IfBlock.tsx';
 import { StepCard } from './StepCard.tsx';
-import { useFlowCheck, useFlowRun, useLive, useMeta, usePresets, useSaveFlow, useStartFlow } from '../queries.ts';
+import { useActiveEnvironment, useFlowCheck, useFlowRun, useLive, useMeta, usePresets, useSaveFlow, useStartFlow } from '../queries.ts';
 
 type BuilderMode = 'form' | 'drag';
 
@@ -32,6 +33,7 @@ const FlowBuilder = ({ meta, initial, flows }: { meta: Meta; initial?: Preset; f
   const [saving, setSaving] = useState(false);
   const { data: live } = useLive();
   const start = useStartFlow();
+  const env = useActiveEnvironment();
   const save = useSaveFlow();
   const { confirm, notify, dialog } = useDialog();
 
@@ -60,7 +62,7 @@ const FlowBuilder = ({ meta, initial, flows }: { meta: Meta; initial?: Preset; f
             <li key={i}>{t}</li>
           ))}
         </ol>
-        <p className="box warn">This makes permanent records on DEV.</p>
+        <p className="box warn">This makes permanent records on {targetOf(env)}.</p>
       </>
     );
     if (!(await confirm({ title: named ? `Start ${named}?` : 'Start this flow?', body, ok: 'Start' }))) return;

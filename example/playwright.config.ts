@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { defineConfig } from '@playwright/test';
-import { flowkitProjects, flowkitReporters } from '../src/playwright.ts';
+import { flowkitProjects, flowkitReporters, loadEnvironment } from '../src/playwright.ts';
 import { PORTAL } from './portal/fake-portal.ts';
 
 const root = import.meta.dirname;
+loadEnvironment(root);
 
 export default defineConfig({
   testDir: root,

@@ -1,6 +1,6 @@
 import type { FieldJson, FlowDef, FlowRun, FunctionMeta } from '../../src/index.ts';
 import type { Option } from '../../src/forms/types.ts';
-import type { FlowEvent, KitSettings, RunRecord } from '../../src/index.ts';
+import type { EnvironmentVar, FlowEvent, KitSettings, RunRecord } from '../../src/index.ts';
 
 export type { FieldJson, FlowDef, FlowRun, FlowRunStep, FlowStep } from '../../src/index.ts';
 
@@ -42,6 +42,14 @@ export type HistoryItem = Omit<RunInfo, 'view'> & { view: { failures: Failure[] 
 /** What the server says about a function's inputs before a run. */
 export type InputCheck = { problems: string[]; fromRecord: string[]; unknownRecord: boolean; missingEnv: string[] };
 
+export type { EnvironmentVar } from '../../src/index.ts';
+
+/** One env file and its vars, as the server shows them: secrets carry no value. */
+export type EnvironmentFile = { file: string; vars: EnvironmentVar[] };
+
+/** The environments under the repo root, which one runs use now (`null`: `.env.local` alone), and `.env.local` itself. */
+export type Environments = { active: string | null; shared: EnvironmentFile; environments: (EnvironmentFile & { name: string })[] };
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -78,4 +86,6 @@ export const api = {
   saveFlow: (body: { name: string; flow: FlowDef; overwrite: boolean }) => post<{ file: string }>('/api/flows', body),
   flowRuns: () => request<FlowRun[]>('/api/flow-runs'),
   flowRun: (id: string) => request<FlowRun>(`/api/flow-runs/${encodeURIComponent(id)}`),
+  environments: () => request<Environments>('/api/environments'),
+  chooseEnvironment: (name: string | null) => post<{ active: string | null }>('/api/environments/active', { name }),
 };

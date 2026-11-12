@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { masked } from './contract.ts';
 import { loadRepo, manifestOf, type Repo } from './discover.ts';
+import { describeEnvironment, ENV_NAME_ENV, environmentProblem, listEnvironments, loadEnvironment, SHARED_ENV_FILE } from './environments.ts';
 import { flowProblems, flowSummary, type FlowDef, type FlowRun } from './flow.ts';
 import { fromRoot, metaOf, ROOT_ENV } from './fn.ts';
 import { newFlow, newFunction, newStep, type Generated } from './generate.ts';
@@ -15,17 +16,20 @@ const USAGE = `flowright <command> <root> [...]
   list <root>              the functions, steps and flows under root
   check <root>             every problem with the pattern; exits 1 when there is one
   manifest <root>          the repo as JSON (what the Playwright config and the app read)
-  run <root> <flow.json>   run a flow, one function after another [--headed]
+  run <root> <flow.json>   run a flow, one function after another [--headed] [--env <name>]
   run <root> <function> [name=value ...]
-                           run one function; inputs not given come from its record [--headed]
+                           run one function; inputs not given come from its record [--headed] [--env <name>]
+  envs <root> [<name>]     the environments (.env.<name>.local), or one's vars with secrets hidden
   records <root>           the records the functions keep, newest first
-  app <root> [--port 4321] [--data <dir>] [--no-open]
+  app <root> [--port 4321] [--data <dir>] [--env <name>] [--no-open]
                            the app: run functions and flows, see history and records
 
   new step <root> <area>/<name> [--portal web]
   new function <root> <area>/<id> --title "…" [--record kind] [--starts]
                            [--inputs a,b] [--optional c,d] [--outputs x,y]   (a record's key is added for you)
-  new flow <root> <name> <function> [<function> …]`;
+  new flow <root> <name> <function> [<function> …]
+
+  --env <name> (or FLOWKIT_ENV=<name>) runs with .env.<name>.local on top of .env.local.`;
 
 const printProblems = (repo: Repo) => {
   for (const p of repo.problems) console.log(`✗ ${p.file}: ${p.message}`);
@@ -84,7 +88,17 @@ const records = (repo: Repo) => {
   }
 };
 
+const chosenEnvironment = (root: string, args: string[]): { env?: string; problem?: string } => {
+  const env = flag(args, 'env') || process.env[ENV_NAME_ENV] || undefined;
+  return { env, problem: env && environmentProblem(root, env) };
+};
+
 const run = async (repo: Repo, target: string, args: string[]) => {
+  const { env, problem } = chosenEnvironment(repo.root, args);
+  if (problem) {
+    console.log(`✗ ${problem}`);
+    return 1;
+  }
   const { flow, name, file } = flowOf(repo, target, args);
   const headed = args.includes('--headed');
   const metas = repo.functions.map((f) => metaOf(f.def));
@@ -93,9 +107,34 @@ const run = async (repo: Repo, target: string, args: string[]) => {
     for (const p of problems) console.log(`✗ ${p}`);
     return 1;
   }
-  const result = await runFlow(repo.root, metas, flow, { name: flow.title ?? name, file, headed, onChange: (r) => printRun(repo, r) });
+  if (env) {
+    process.env[ENV_NAME_ENV] = env;
+    loadEnvironment(repo.root);
+    console.log(`Environment: ${env} (.env.${env}.local on top of ${SHARED_ENV_FILE})`);
+  }
+  const result = await runFlow(repo.root, metas, flow, { name: flow.title ?? name, file, env, headed, onChange: (r) => printRun(repo, r) });
   console.log(`\nflow ${result.status}. Values: ${JSON.stringify(masked(repo.fields, result.values))}`);
   return result.status === 'passed' ? 0 : 1;
+};
+
+const envs = (root: string, name: string | undefined) => {
+  const all = listEnvironments(root);
+  if (!name) {
+    if (!all.length) console.log(`No environments; runs use ${SHARED_ENV_FILE} alone. Add .env.<name>.local files to make some.`);
+    for (const e of all) console.log(`  ${e}`);
+    return 0;
+  }
+  const problem = environmentProblem(root, name);
+  if (problem) {
+    console.log(`✗ ${problem}`);
+    return 1;
+  }
+  for (const v of describeEnvironment(root, name, process.env)) {
+    let shown = v.value || '(empty)';
+    if (v.secret) shown = v.set ? '•••• (set)' : '(empty)';
+    console.log(`  ${v.name.padEnd(32)} ${shown.padEnd(48)} ${v.from}`);
+  }
+  return 0;
 };
 
 const flag = (args: string[], name: string) => {
@@ -142,7 +181,13 @@ const app = async (root: string, args: string[]): Promise<number> => {
   const { buildUi } = await import('./app/build.ts');
   await buildUi(ui, [path.join(ui, 'src'), path.join(ui, 'index.html'), path.join(FLOWKIT, 'src')]);
   const { startApp } = await import('./app/server.ts');
-  await startApp({ root, dataRoot: flag(args, 'data'), port: Number(flag(args, 'port') ?? 4321), uiDir: path.join(ui, 'dist'), open: !args.includes('--no-open') });
+  const env = flag(args, 'env') || process.env[ENV_NAME_ENV] || undefined;
+  const problem = env && environmentProblem(path.resolve(flag(args, 'data') ?? root), env);
+  if (problem) {
+    console.log(`✗ ${problem}`);
+    return 1;
+  }
+  await startApp({ root, dataRoot: flag(args, 'data'), env, port: Number(flag(args, 'port') ?? 4321), uiDir: path.join(ui, 'dist'), open: !args.includes('--no-open') });
   return 0;
 };
 
@@ -173,6 +218,7 @@ const main = async (argv: string[]): Promise<number> => {
     return repo.problems.length ? 1 : 0;
   }
   if (command === 'run' && rest[0]) return run(repo, rest[0], rest.slice(1));
+  if (command === 'envs') return envs(repo.root, rest[0]);
   if (command === 'records') {
     records(repo);
     return 0;

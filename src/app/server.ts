@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { findFiles, loadRepo, manifestOf, type Manifest, type Repo } from '../discover.ts';
+import { describeEnvironment, ENV_NAME_ENV, environmentEnv, environmentFile, environmentProblem, listEnvironments, SHARED_ENV_FILE } from '../environments.ts';
 import { applyEvent, emptyRun, EVENTS_ENV, parseLine, type RunView } from '../events.ts';
 import { valueProblem, type Fields } from '../fields.ts';
 import { flatten, flowProblems, flowSummary, fnStepAt, isIf, newFlowRun, nextStepIndex, resolveInput, secretProblems, stepEnded, stepStarted, type FlowDef, type FlowRun } from '../flow.ts';
@@ -13,7 +14,8 @@ import { INPUT_ENV, OUTPUT_ENV, type Values } from '../io.ts';
 import { readRecord, RECORDS_DIR } from '../records.ts';
 import { describeRecord, functionsOn, listRecordViews, recordDetails, type RecordView } from '../recordView.ts';
 import type { AppContext, Option, Preset } from '../settings.ts';
-import { localEnv, missingEnv, withoutEnv } from './env.ts';
+import { localEnv, missingEnv, runEnv } from './env.ts';
+import { blockedRequest } from './guard.ts';
 import { cleanFlow, filledInputs, inputProblems, presetPath, summarize } from './inputs.ts';
 import { flowLabel, listPresets, savedFlowFile } from './presets.ts';
 
@@ -27,6 +29,7 @@ let FUNCTIONS: FunctionDef[] = [];
 let METAS: FunctionMeta[] = [];
 let FIELDS: Fields = {};
 let MANIFEST: Manifest;
+let ENV: string | undefined;
 
 type RunEnd = { status: 'passed' | 'failed' | 'stopped'; output?: Values; error?: string };
 type AppFlowRun = FlowRun & { headed?: boolean };
@@ -35,6 +38,7 @@ type Live = {
   id: string;
   fn: FunctionMeta;
   input: Values;
+  env?: string;
   headed: boolean;
   startedAt: number;
   view: RunView;
@@ -67,7 +71,15 @@ const recordJson = (r: RecordView) => ({
   functions: functionsOn(r.kind, METAS).map((f) => ({ id: f.id, title: f.title })),
 });
 
-const envMissing = (fn: FunctionMeta, values: Values): string[] => missingEnv(fn, values, FIELDS, localEnv(ROOT));
+const appEnv = () => (ENV ? environmentEnv(ROOT, ENV, process.env) : localEnv(ROOT));
+
+const envMissing = (fn: FunctionMeta, values: Values): string[] => missingEnv(fn, values, FIELDS, appEnv());
+
+const environments = () => ({
+  active: ENV ?? null,
+  shared: { file: SHARED_ENV_FILE, vars: describeEnvironment(ROOT, undefined, process.env) },
+  environments: listEnvironments(ROOT).map((name) => ({ name, file: environmentFile(name), vars: describeEnvironment(ROOT, name, process.env) })),
+});
 
 const readFlowFile = (full: string): FlowDef | undefined => {
   try {
@@ -117,7 +129,7 @@ const kitOptions = (context: AppContext): Record<string, Option[]> => {
 const meta = () => {
   const all = records();
   const context: AppContext = {
-    env: localEnv(ROOT),
+    env: appEnv(),
     records: all,
     presets: Object.fromEntries(presetFields().map(({ name, folder }): [string, Preset[]] => [name, listPresets(folder, ROOT)])),
     flows: flowFiles().flatMap((f) => (f.spec ? [f.spec] : [])),
@@ -132,6 +144,7 @@ const liveRecord = (l: Live): RunRecord => ({
   startedAt: l.startedAt,
   status: 'running',
   input: masked(l.input),
+  ...(l.env && { env: l.env }),
   headed: l.headed,
   view: l.view,
   records: [],
@@ -206,14 +219,14 @@ const startRun = (fn: FunctionMeta, input: Values, headed: boolean, onEnd?: (end
   const id = newRunId();
   mkdirSync(runDir(id, ROOT), { recursive: true });
   const env: NodeJS.ProcessEnv = {
-    ...withoutEnv(process.env, MANIFEST.settings.unsetEnv),
+    ...runEnv(ROOT, ENV, process.env, MANIFEST.settings.unsetEnv),
     [INPUT_ENV]: JSON.stringify(input),
     [OUTPUT_ENV]: outputFile(id),
     [EVENTS_ENV]: '1',
     [RUN_ID_ENV]: id,
     FORCE_COLOR: '0',
   };
-  const l: Live = { id, fn, input, headed, startedAt: Date.now(), view: emptyRun(), log: [], stopping: false };
+  const l: Live = { id, fn, input, ...(ENV && { env: ENV }), headed, startedAt: Date.now(), view: emptyRun(), log: [], stopping: false };
   const child = spawn('npx', ['playwright', 'test', `--project=${fn.id}`, ...(headed ? ['--headed'] : [])], { env, cwd: ROOT, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   l.child = child;
   const out = lineSplitter((line) => handleLine(l, line));
@@ -308,7 +321,19 @@ const advanceFlow = () => {
   send('live', liveJson());
 };
 
-const busy = () => (live?.child ? `"${live.fn.title}" is still running. Runs go one at a time: DEV accounts are shared.` : undefined);
+const busy = () => (live?.child ? `"${live.fn.title}" is still running. Runs go one at a time: test accounts are shared.` : undefined);
+
+const flowGoing = () => flow?.status === 'running';
+
+const chooseEnvironment = (b: Record<string, unknown>): [number, unknown] => {
+  if (busy() || flowGoing()) return [409, { error: 'Wait for the run to end: a run keeps the environment it started in.' }];
+  const name = typeof b.name === 'string' && b.name ? b.name : undefined;
+  const problem = name && environmentProblem(ROOT, name);
+  if (problem) return [400, { error: problem }];
+  ENV = name;
+  send('changed', 'environment');
+  return [200, { active: ENV ?? null }];
+};
 
 const json = (res: ServerResponse, status: number, body: unknown) => {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -434,7 +459,7 @@ const postFlowRun: Handler = async (req, res) => {
   if (errors.length) return json(res, 400, { error: `The flow can't run:\n- ${errors.join('\n- ')}` });
   const name = (typeof b.name === 'string' && b.name.trim()) || def.title || flowSummary(METAS, def);
   const file = savedFlowFile(b.file, flowFiles().map((f) => f.file));
-  flow = { ...newFlowRun(METAS, def, { id: newRunId(), name, now: Date.now(), file }), headed: b.headed === true };
+  flow = { ...newFlowRun(METAS, def, { id: newRunId(), name, now: Date.now(), file, env: ENV }), headed: b.headed === true };
   advanceFlow();
   return json(res, 202, { id: flow.id });
 };
@@ -486,9 +511,16 @@ const ROUTES: Record<string, Handler> = {
   },
   'POST /api/flow/run': postFlowRun,
   'GET /api/flow-runs': (_req, res) => json(res, 200, listFlowRuns(ROOT)),
+  'GET /api/environments': (_req, res) => json(res, 200, environments()),
+  'POST /api/environments/active': async (req, res) => {
+    const [status, body] = chooseEnvironment(await readBody(req));
+    return json(res, status, body);
+  },
 };
 
 const routes = async (req: IncomingMessage, res: ServerResponse) => {
+  const blocked = blockedRequest(req.method, req.headers);
+  if (blocked) return json(res, 403, { error: blocked });
   const url = new URL(req.url ?? '/', `http://${HOST}`);
   const report = /^\/runs\/([^/]+)\/report\/(.*)$/.exec(url.pathname);
   if (report) return serveReport(res, report[1], report[2]);
@@ -511,14 +543,21 @@ const openInBrowser = (url: string) => {
  *
  * - `dataRoot`: where records, history, presets (`config/`) and `.env.local` are read and written, and
  *   where runs start; default `root`. Tests point it at a scratch copy.
+ * - `env`: the environment runs start in (`.env.<env>.local` over `.env.local`); default `FLOWKIT_ENV`, else
+ *   none. The page can switch it between runs.
  * - `uiDir`: the built page (`ui/dist` of flowkit).
  * - `open`: open the page in the default browser once listening.
  *
  * Loads every function file in this process, so the kit's app hooks run here. Problems with the pattern
- * are printed, not fatal. On SIGINT or SIGTERM it stops a running function first, then exits.
+ * are printed, not fatal.
+ *
+ * @throws when `env` names an environment with no file. On SIGINT or SIGTERM it stops a running function first, then exits.
  */
-export const startApp = async (options: { root: string; dataRoot?: string; port: number; uiDir: string; open: boolean }): Promise<Server> => {
+export const startApp = async (options: { root: string; dataRoot?: string; env?: string; port: number; uiDir: string; open: boolean }): Promise<Server> => {
   ROOT = path.resolve(options.dataRoot ?? options.root);
+  ENV = options.env || process.env[ENV_NAME_ENV] || undefined;
+  const envProblem = ENV && environmentProblem(ROOT, ENV);
+  if (envProblem) throw new Error(envProblem);
   DIST = options.uiDir;
   REPO = await loadRepo(options.root);
   FUNCTIONS = REPO.functions.map((f) => f.def);
@@ -534,7 +573,7 @@ export const startApp = async (options: { root: string; dataRoot?: string; port:
   });
   await new Promise<void>((resolve) => server.listen(options.port, HOST, resolve));
   const url = `http://localhost:${options.port}`;
-  console.log(`${MANIFEST.settings.title}: ${url}  (Ctrl+C to stop)`);
+  console.log(`${MANIFEST.settings.title}: ${url}  (Ctrl+C to stop)${ENV ? `  · environment ${ENV}` : ''}`);
   if (options.open) openInBrowser(url);
   const shutdown = () => {
     if (live?.child) stopRun(live);

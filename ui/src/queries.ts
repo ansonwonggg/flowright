@@ -10,6 +10,7 @@ export const keys = {
   run: (id: string) => ['run', id],
   flowRuns: ['flow-runs'],
   flowRun: (id: string) => ['flow-run', id],
+  environments: ['environments'],
 } as const;
 
 export const useMeta = () => useQuery({ queryKey: keys.meta, queryFn: api.meta, staleTime: 30_000 });
@@ -18,6 +19,21 @@ export const useRecords = () => useQuery({ queryKey: keys.records, queryFn: api.
 export const useHistory = () => useQuery({ queryKey: keys.history, queryFn: api.history });
 export const useLive = () => useQuery({ queryKey: keys.live, queryFn: api.live, staleTime: Infinity });
 export const useRun = (id: string) => useQuery({ queryKey: keys.run(id), queryFn: () => api.run(id), staleTime: Infinity, retry: false });
+
+export const useEnvironments = () => useQuery({ queryKey: keys.environments, queryFn: api.environments });
+
+/** The environment runs use now; `null` for `.env.local` alone, `undefined` while loading. */
+export const useActiveEnvironment = (): string | null | undefined => useEnvironments().data?.active;
+
+export const useChooseEnvironment = () => {
+  const client = useQueryClient();
+  return useMutation({ mutationFn: api.chooseEnvironment, onSuccess: () => invalidateEnvironment(client) });
+};
+
+/** Refreshes what depends on the environment: the list itself, the kit's form lists, and every env check. */
+export const invalidateEnvironment = (client: ReturnType<typeof useQueryClient>) => {
+  for (const queryKey of [keys.environments, keys.meta, ['check'], ['check-flow']]) client.invalidateQueries({ queryKey });
+};
 
 export const useFlowRuns = () => useQuery({ queryKey: keys.flowRuns, queryFn: api.flowRuns });
 export const useFlowRun = (id: string) => useQuery({ queryKey: keys.flowRun(id), queryFn: () => api.flowRun(id), retry: false, enabled: Boolean(id) });

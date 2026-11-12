@@ -95,9 +95,30 @@ describe('RunPage', () => {
     at(`/run/${RUN_ID}`);
     await userEvent.click(await screen.findByRole('button', { name: 'Stop' }));
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('Whatever DEV already accepted stays there.');
+    expect(dialog).toHaveTextContent('Whatever the system under test already accepted stays there.');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(stopCalls(fetch)).toHaveLength(0);
+  });
+
+  it('shows the environment the run used, and names it in the Stop question', async () => {
+    serve({ run: fnRun({ status: 'running', live: true, endedAt: undefined, env: 'uat' }) });
+    at(`/run/${RUN_ID}`);
+    expect(await screen.findByTitle('Environment')).toHaveTextContent('uat');
+    await userEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Whatever the uat environment already accepted stays there.');
+  });
+
+  it('a run with no environment shows no environment chip', async () => {
+    serve({});
+    at(`/run/${RUN_ID}`);
+    await screen.findByTestId('run-status');
+    expect(screen.queryByTitle('Environment')).toBeNull();
+  });
+
+  it('a flow run shows the environment it ran in', async () => {
+    serve({ flow: flowRun({ env: 'uat' }) });
+    at(`/flow-run/${FLOW_ID}`);
+    expect(await screen.findByTitle('Environment')).toHaveTextContent('uat');
   });
 
   it('Stop, confirmed, stops the run', async () => {
@@ -188,7 +209,7 @@ describe('FlowRunPage', () => {
     at(`/flow-run/${FLOW_ID}`);
     await userEvent.click(await screen.findByRole('button', { name: 'Stop' }));
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('Whatever DEV already accepted stays there.');
+    expect(dialog).toHaveTextContent('Whatever the system under test already accepted stays there.');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(stopCalls(fetch)).toHaveLength(0);
   });

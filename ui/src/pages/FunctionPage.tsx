@@ -11,8 +11,9 @@ import { RunBar } from '../components/RunBar.tsx';
 import { ValueInput } from '../components/ValueInput.tsx';
 import { splitTag } from '../lib/flowChart.ts';
 import { formOf } from '../lib/flowDraft.ts';
+import { targetOf } from '../lib/environment.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
-import { useInputCheck, useLive, useMeta, usePresets, useRun, useSavePreset, useStartRun } from '../queries.ts';
+import { useActiveEnvironment, useInputCheck, useLive, useMeta, usePresets, useRun, useSavePreset, useStartRun } from '../queries.ts';
 
 /** Saved presets for a JSON input with a presets folder; none for other fields. */
 export const presetsFor = (field: FieldJson | undefined, presets: Presets | undefined): Preset[] =>
@@ -104,6 +105,7 @@ const FunctionForm = ({ fn, meta, presets, initial }: { fn: Fn; meta: Meta; pres
   const [headed, setHeaded] = useState(() => readPref('headed') === '1');
   const { data: live } = useLive();
   const start = useStartRun();
+  const env = useActiveEnvironment();
   const { confirm, notify, dialog } = useDialog();
 
   const payload: Record<string, unknown> = {
@@ -118,7 +120,7 @@ const FunctionForm = ({ fn, meta, presets, initial }: { fn: Fn; meta: Meta; pres
 
   const run = async () => {
     const target = key && values[key] ? `${fn.title} on ${values[key]}` : fn.title;
-    if (!(await confirm({ title: `Start ${target}?`, body: <p className="box warn">This makes permanent records on DEV.</p>, ok: 'Start' }))) return;
+    if (!(await confirm({ title: `Start ${target}?`, body: <p className="box warn">This makes permanent records on {targetOf(env)}.</p>, ok: 'Start' }))) return;
     try {
       const { id } = await start.mutateAsync({ function: fn.id, values: payload, headed });
       navigate(`/run/${id}`);

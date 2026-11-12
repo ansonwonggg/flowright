@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
+import { ENV_NAME_ENV, environmentEnv } from '../environments.ts';
 import type { Fields } from '../fields.ts';
 import type { FunctionMeta } from '../fn.ts';
 import type { Values } from '../values.ts';
@@ -39,4 +40,15 @@ export const missingEnv = (fn: Pick<FunctionMeta, 'env' | 'inputs'>, values: Val
 export const withoutEnv = (env: NodeJS.ProcessEnv, names: string[]): NodeJS.ProcessEnv => {
   const drop = new Set(names.map((n) => n.toLowerCase()));
   return Object.fromEntries(Object.entries(env).filter(([key]) => !drop.has(key.toLowerCase())));
+};
+
+/**
+ * The env a run started by the app gets: `env` without `unset` (any case), with environment `name`'s files
+ * filled in under it and `FLOWKIT_ENV` set to `name`. With no `name`, `FLOWKIT_ENV` is dropped too, so a
+ * value left in the app's own shell can't pick an environment the page didn't.
+ */
+export const runEnv = (root: string, name: string | undefined, env: NodeJS.ProcessEnv, unset: string[]): NodeJS.ProcessEnv => {
+  const drop = [...unset, ENV_NAME_ENV];
+  if (!name) return withoutEnv(env, drop);
+  return { ...withoutEnv(environmentEnv(root, name, env), drop), [ENV_NAME_ENV]: name };
 };

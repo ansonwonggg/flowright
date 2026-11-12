@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it as test } from 'node:test';
 import { needsBuild } from '../src/app/build.ts';
-import { localEnv, missingEnv, withoutEnv } from '../src/app/env.ts';
+import { localEnv, missingEnv, runEnv, withoutEnv } from '../src/app/env.ts';
 import { flowLabel, listPresets, savedFlowFile } from '../src/app/presets.ts';
 import { field } from '../src/fields.ts';
 import type { FunctionMeta } from '../src/fn.ts';
@@ -122,4 +122,16 @@ describe('savedFlowFile', () => {
   for (const bad of ['config/flows/gone.flow.json', 'a', 'config/flows/../flows/a.flow.json', ' config/flows/a.flow.json', '', undefined, null, 5, ['config/flows/a.flow.json']])
     test(`refuses ${JSON.stringify(bad)}`, () => expect(savedFlowFile(bad, files)).toBeUndefined());
   test('no saved flows: refuses everything', () => expect(savedFlowFile('config/flows/a.flow.json', [])).toBeUndefined());
+});
+
+describe('runEnv', () => {
+  const root = tmp();
+  write(root, '.env.local', 'A=shared\nB=shared\nHTTPS_PROXY=http://from-file\n');
+  write(root, '.env.uat.local', 'B=uat\nC=uat\n');
+
+  test('with an environment: its files under the shell, the unset vars gone in any case, FLOWKIT_ENV set', () =>
+    expect(runEnv(root, 'uat', { C: 'shell', https_proxy: 'p', FLOWKIT_ENV: 'dev' }, ['HTTPS_PROXY'])).toEqual({ A: 'shared', B: 'uat', C: 'shell', FLOWKIT_ENV: 'uat' }));
+
+  test('with none: the shell env alone, files untouched (the repo config loads .env.local itself), FLOWKIT_ENV dropped', () =>
+    expect(runEnv(root, undefined, { X: '1', HTTPS_PROXY: 'p', FLOWKIT_ENV: 'uat' }, ['HTTPS_PROXY'])).toEqual({ X: '1' }));
 });

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { FullConfig, FullResult, Reporter, Suite, TestCase, TestResult, TestStep } from '@playwright/test/reporter';
 import type { Manifest } from './discover.ts';
+import { ENV_NAME_ENV } from './environments.ts';
 import { applyEvent, emptyRun, encodeEvent, EVENTS_ENV, type FlowEvent, type RunView } from './events.ts';
 import { classifyFailure, shortError } from './failure.ts';
 import type { FieldJson } from './fields.ts';
@@ -151,6 +152,7 @@ export default class FlowReporter implements Reporter {
         startedAt: this.startedAt,
         status: 'running',
         input: runInput(process.env, found.fields),
+        ...(process.env[ENV_NAME_ENV] && { env: process.env[ENV_NAME_ENV] }),
         headed: config.projects.some((p) => p.use?.headless === false),
         view: this.view,
         records: [],

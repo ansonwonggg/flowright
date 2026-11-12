@@ -6,6 +6,8 @@ import type { Manifest } from './discover.ts';
 import { PLAYWRIGHT_ENV, ROOT_ENV } from './fn.ts';
 import { HISTORY_DIR, newRunId, RUN_ID_ENV } from './history.ts';
 
+export { loadEnvironment } from './environments.ts';
+
 let current: Manifest | undefined;
 
 /**

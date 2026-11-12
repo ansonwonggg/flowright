@@ -52,6 +52,10 @@ nav a:hover { text-decoration: none; color: var(--top-ink); background: rgba(255
 nav a.on { color: #fff; background: rgba(139, 116, 255, .22); box-shadow: inset 0 0 0 1px rgba(160, 140, 255, .28); }
 .offline { font-size: 12px; color: #ffb4b7; }
 header .pill.running { background: rgba(241, 174, 74, .16); color: #ffc66b; }
+.env-picker { display: inline-flex; align-items: center; gap: 8px; flex: none; font-size: 12px; font-weight: 650; color: var(--top-muted); text-transform: uppercase; letter-spacing: .06em; }
+.env-picker select { width: auto; padding: 5px 10px; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--top-ink); background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .16); }
+.env-picker select:disabled { opacity: .6; cursor: not-allowed; }
+.env-picker option { color: var(--ink); background: var(--panel); }
 
 /* ---------- Page widths ---------- */
 .wrap { padding: 28px 24px 0; }
@@ -244,6 +248,11 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .live-pill:hover { text-decoration: none; }
 .chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); white-space: nowrap; }
 .chip.done { background: var(--ok-bg); color: var(--ok); }
+.chip.warn { background: var(--warn-bg); color: var(--warn); }
+.chip.env-chip { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+.env-table .env-value { overflow-wrap: anywhere; }
+.env-active { opacity: .75; font-weight: 500; }
+.env-section .card-head { padding: 14px 10px 4px; }
 .bad-chip { background: var(--bad-bg); color: var(--bad); }
 .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); letter-spacing: .04em; }
 .step-no { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 750; margin-right: 6px; vertical-align: 1px; }

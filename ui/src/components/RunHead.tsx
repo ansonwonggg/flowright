@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
+import { targetOf } from '../lib/environment.ts';
 import { useStopRun } from '../queries.ts';
 import { useDialog } from './Dialog.tsx';
-import { ReportLink, StatusPill } from './bits.tsx';
+import { EnvChip, ReportLink, StatusPill } from './bits.tsx';
 
 /**
  * The header a function run and a flow run share: back link, title, status, then Run again, the report
@@ -13,6 +14,7 @@ import { ReportLink, StatusPill } from './bits.tsx';
  * @param rerunTo - where Run again goes; no button when left out.
  * @param reportOf - the run whose kept Playwright report to link to; no link when left out.
  * @param stoppable - shows Stop.
+ * @param env - the environment the run used, shown as a chip and named in the Stop question; none when left out.
  * @param children - extra controls, placed before the buttons, e.g. a view switch.
  */
 export const RunHead = ({
@@ -23,6 +25,7 @@ export const RunHead = ({
   rerunTo,
   reportOf,
   stoppable,
+  env,
   children,
 }: {
   back: { to: string; label: string };
@@ -32,12 +35,13 @@ export const RunHead = ({
   rerunTo?: string;
   reportOf?: string;
   stoppable: boolean;
+  env?: string;
   children?: React.ReactNode;
 }) => {
   const stop = useStopRun();
   const { confirm, notify, dialog } = useDialog();
   const onStop = async () => {
-    if (!(await confirm({ title: 'Stop this run?', body: 'Whatever DEV already accepted stays there.', ok: 'Stop', tone: 'danger' }))) return;
+    if (!(await confirm({ title: 'Stop this run?', body: `Whatever ${targetOf(env)} already accepted stays there.`, ok: 'Stop', tone: 'danger' }))) return;
     try {
       await stop.mutateAsync();
     } catch (e) {
@@ -53,6 +57,7 @@ export const RunHead = ({
       <div className="pagehead">
         <h1>{title}</h1>
         <StatusPill status={status} testId={statusTestId} />
+        {env && <EnvChip env={env} />}
         <span className="spacer" />
         {children}
         {rerunTo && (

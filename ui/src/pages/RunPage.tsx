@@ -64,6 +64,7 @@ export const RunPage = () => {
         rerunTo={fn && !live ? `/fn/${fn.id}?run=${run.id}` : undefined}
         reportOf={run.hasReport ? run.id : undefined}
         stoppable={live && run.status !== 'stopping'}
+        env={run.env}
       />
       <p className="lead">
         {when(run.startedAt)} · {duration((run.endedAt ?? now) - run.startedAt)}

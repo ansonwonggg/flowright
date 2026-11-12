@@ -60,12 +60,14 @@ export type FlowRunStep = FlatStep & { title: string; status: StepStatus; input?
 /**
  * One run of a flow. `values` holds every output so far; a later output of the same name wins. `file` is the
  * saved flow it was started from, from the repo root (`config/flows/x.flow.json`); absent for a flow that was
- * never saved, and for runs made before flowright 0.1.7.
+ * never saved, and for runs made before flowright 0.1.7. `env` is the environment it ran in (see
+ * `FLOWKIT_ENV`); absent when it ran on `.env.local` alone.
  */
 export type FlowRun = {
   id: string;
   name: string;
   file?: string;
+  env?: string;
   startedAt: number;
   endedAt?: number;
   status: 'running' | 'passed' | 'failed' | 'stopped';
@@ -280,12 +282,13 @@ const settle = (run: FlowRun, now: number): FlowRun => {
 };
 
 /** A new run of `flow`, laid out flat (see {@link flatten}), every step waiting. Assumes {@link flowProblems} found nothing. */
-export const newFlowRun = (fns: FunctionMeta[], flow: FlowDef, opts: { id: string; name: string; now: number; file?: string }): FlowRun =>
+export const newFlowRun = (fns: FunctionMeta[], flow: FlowDef, opts: { id: string; name: string; now: number; file?: string; env?: string }): FlowRun =>
   settle(
     {
       id: opts.id,
       name: opts.name,
       ...(opts.file && { file: opts.file }),
+      ...(opts.env && { env: opts.env }),
       startedAt: opts.now,
       status: 'running',
       values: {},

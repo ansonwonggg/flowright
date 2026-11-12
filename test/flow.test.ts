@@ -117,6 +117,11 @@ describe('flow run', () => {
     assert.equal('file' in fresh(), false);
     assert.equal('file' in newFlowRun(FNS, WEB, { id: 'r', name: 'web', now: 1, file: '' }), false);
   });
+  it('keeps the environment it ran in; none or blank keeps none', () => {
+    assert.equal(newFlowRun(FNS, WEB, { id: 'r', name: 'web', now: 1, env: 'uat' }).env, 'uat');
+    assert.equal('env' in fresh(), false);
+    assert.equal('env' in newFlowRun(FNS, WEB, { id: 'r', name: 'web', now: 1, env: '' }), false);
+  });
   it('runs in turn, passing outputs on, then passes', () => {
     let run = fresh();
     assert.equal(nextStepIndex(run), 0);

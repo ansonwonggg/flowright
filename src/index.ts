@@ -1,5 +1,6 @@
 export { checkOutput, masked, prepareInput, type Need } from './contract.ts';
 export { findFiles, loadRepo, manifestOf, SUFFIX, type Manifest, type Problem, type Repo } from './discover.ts';
+export { describeEnvironment, ENV_NAME_ENV, environmentEnv, environmentFile, environmentProblem, isSecretName, listEnvironments, loadEnvironment, SHARED_ENV_FILE, type EnvironmentVar } from './environments.ts';
 export { defineFields, field, fieldFromJson, fieldJson, valueProblem, type Field, type FieldJson, type Fields } from './fields.ts';
 export * from './flow.ts';
 export { createKit, fromRoot, isFunction, metaOf, PLAYWRIGHT_ENV, ROOT_ENV, type FunctionDef, type FunctionMeta, type InputOf, type OutputOf } from './fn.ts';

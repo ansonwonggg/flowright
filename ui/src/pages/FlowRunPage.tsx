@@ -176,6 +176,7 @@ export const FlowRunPage = () => {
         statusTestId="flow-status"
         rerunTo={run.status === 'running' ? undefined : `/flow-builder?run=${encodeURIComponent(run.id)}`}
         stoppable={run.status === 'running'}
+        env={run.env}
       >
         <div className="modes" role="radiogroup" aria-label="View">
           {(

@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createHashRouter, RouterProvider } from 'react-router-dom';
 import { App } from './App.tsx';
+import { EnvironmentsPage } from './pages/EnvironmentsPage.tsx';
 import { FlowBuilderPage } from './pages/FlowBuilderPage.tsx';
 import { FlowRunPage } from './pages/FlowRunPage.tsx';
 import { FlowsPage } from './pages/FlowsPage.tsx';
@@ -28,6 +29,7 @@ const router = createHashRouter([
       { path: 'run/:id', element: <RunPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'records', element: <RecordsPage /> },
+      { path: 'environments', element: <EnvironmentsPage /> },
       { path: '*', element: <div className="empty">Page not found.</div> },
     ],
   },

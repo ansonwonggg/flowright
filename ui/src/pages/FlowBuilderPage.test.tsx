@@ -11,7 +11,9 @@ let checkErrors: string[] = [];
 let flowRuns: Record<string, FlowRun> = {};
 const start = { mutateAsync: vi.fn(), isPending: false };
 const save = { mutateAsync: vi.fn(), isPending: false };
+let activeEnv: string | null = null;
 vi.mock('../queries.ts', () => ({
+  useActiveEnvironment: () => activeEnv,
   useMeta: () => ({ data: META }),
   usePresets: () => ({ data: { fields: {}, flows: savedFlows } }),
   useLive: () => ({ data: null }),
@@ -91,10 +93,21 @@ describe('FlowBuilderPage dialogs', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Run the flow' }));
     const dialog = screen.getByRole('dialog', { name: 'Start this flow?' });
     expect(within(dialog).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['[Web] Create ER User', '[Admin] Vet']);
-    expect(dialog).toHaveTextContent('This makes permanent records on DEV.');
+    expect(dialog).toHaveTextContent('This makes permanent records on the system under test.');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(start.mutateAsync).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('the Run question names the environment the run will use', async () => {
+    activeEnv = 'uat';
+    try {
+      await withSteps();
+      await userEvent.click(screen.getByRole('button', { name: 'Run the flow' }));
+      expect(screen.getByRole('dialog', { name: 'Start this flow?' })).toHaveTextContent('This makes permanent records on the uat environment.');
+    } finally {
+      activeEnv = null;
+    }
   });
 
   it('Start starts the flow under its name', async () => {

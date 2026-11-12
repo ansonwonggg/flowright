@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { request } from 'node:http';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
@@ -86,6 +88,53 @@ describe('flowkit app on the example repo', { timeout: 240_000 }, () => {
     assert.equal((await runOf('config/flows/not-saved.flow.json')).file, undefined);
     const listed = await get('/api/flow-runs');
     assert.equal(listed.find((r: { id: string }) => r.id === linked.id)?.file, saved.file, 'kept on disk, not only in memory');
+  });
+
+  it('shows each environment with secrets hidden, switches between runs, and keeps the one a run used', async () => {
+    const file = path.join(ROOT, 'example/.env.e2e.local');
+    writeFileSync(file, 'E2E_PORTAL_URL=https://e2e.example\nE2E_PASSWORD=hunter2\n');
+    try {
+      const before = await get('/api/environments');
+      assert.equal(before.active, null);
+      const e2e = before.environments.find((e: { name: string }) => e.name === 'e2e');
+      assert.equal(e2e.file, '.env.e2e.local');
+      assert.deepEqual(e2e.vars, [
+        { name: 'E2E_PASSWORD', secret: true, set: true, from: '.env.e2e.local' },
+        { name: 'E2E_PORTAL_URL', value: 'https://e2e.example', secret: false, set: true, from: '.env.e2e.local' },
+      ]);
+      assert.doesNotMatch(JSON.stringify(before), /hunter2/);
+
+      assert.equal((await post('/api/environments/active', { name: 'nope' })).status, 400);
+      assert.equal((await post('/api/environments/active', { name: 'e2e' })).status, 200);
+      assert.equal((await get('/api/environments')).active, 'e2e');
+
+      const started = await post('/api/run', { function: 'create-er-user', values: { user_spec: { company: 'Acme', user_type: 'Company AP' } } });
+      assert.equal(started.status, 202, JSON.stringify(started.body));
+      const busy = await post('/api/environments/active', { name: null });
+      assert.equal(busy.status, 409, 'no switching while a run goes');
+      const { run } = await waitFor(() => get(`/api/runs/${started.body.id}`), (d) => d?.run?.status === 'passed' || d?.run?.status === 'failed', 120_000);
+      assert.equal(run.status, 'passed', output);
+      assert.equal(run.env, 'e2e');
+      assert.equal(JSON.parse(readFileSync(path.join(ROOT, 'example/out/runs', run.id, 'run.json'), 'utf8')).env, 'e2e', 'the reporter kept it');
+    } finally {
+      await post('/api/environments/active', { name: null });
+      rmSync(file, { force: true });
+    }
+    assert.equal((await get('/api/environments')).active, null);
+  });
+
+  it('answers only on localhost, and takes changes only from its own page', async () => {
+    const status = await new Promise<number | undefined>((resolve, reject) =>
+      request({ host: '127.0.0.1', port: PORT, path: '/api/meta', headers: { host: 'evil.example' } }, (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      })
+        .on('error', reject)
+        .end(),
+    );
+    assert.equal(status, 403, 'fetch would replace the Host header, so this goes through node:http');
+    const crossSite = await fetch(`${BASE}/api/environments/active`, { method: 'POST', headers: { origin: 'https://evil.example' }, body: '{"name":null}' });
+    assert.equal(crossSite.status, 403);
   });
 
   it('refuses bad inputs before anything runs', async () => {
