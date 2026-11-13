@@ -52,10 +52,18 @@ export type FlatStep = FlatFn | FlatIf;
 export type StepStatus = 'waiting' | 'running' | 'passed' | 'failed' | 'stopped' | 'skipped';
 
 /**
- * A flow step while and after it runs. A decided IF has `status: 'passed'`, the arm it `taken`, and as
- * `input` the value it tested (`''` when no step gave it).
+ * An earlier go at a step that failed or was stopped, kept on the step when the run is retried (see
+ * {@link retriedFlowRun}). `runId` is its run in History, absent when it could not start; `output` is what it
+ * gave out before failing, never passed along.
  */
-export type FlowRunStep = FlatStep & { title: string; status: StepStatus; input?: Values; output?: Values; error?: string; runId?: string; taken?: Arm };
+export type StepTry = { status: 'failed' | 'stopped'; error?: string; runId?: string; output?: Values };
+
+/**
+ * A flow step while and after it runs. A decided IF has `status: 'passed'`, the arm it `taken`, and as
+ * `input` the value it tested (`''` when no step gave it). `tries` holds its earlier failed or stopped
+ * goes, oldest first, when the run was retried; the step's own fields describe the latest go.
+ */
+export type FlowRunStep = FlatStep & { title: string; status: StepStatus; input?: Values; output?: Values; error?: string; runId?: string; taken?: Arm; tries?: StepTry[] };
 
 /**
  * One run of a flow. `values` holds every output so far; a later output of the same name wins. `file` is the
@@ -331,4 +339,41 @@ export const stepEnded = (run: FlowRun, result: { status: 'passed' | 'failed' | 
   const steps = run.steps.map((s, i) => (i === index ? { ...s, status: result.status, ...(result.output && { output: result.output }), ...(result.error && { error: result.error }) } : s));
   if (result.status !== 'passed') return { ...run, steps, status: result.status, endedAt: now };
   return settle({ ...run, steps, values: { ...run.values, ...result.output } }, now);
+};
+
+const ended = (s: FlowRunStep) => s.status === 'failed' || s.status === 'stopped';
+
+const envName = (env: string | undefined) => env || '.env.local';
+
+/**
+ * Why `run` can't be retried, or `undefined` when it can: it must have failed or been stopped at a step,
+ * ran in the environment the app is on now (`env`, absent for `.env.local` alone), and every function
+ * from that step on must still be among `functions` (ids).
+ */
+export const retryProblem = (run: FlowRun, opts: { env?: string; functions: string[] }): string | undefined => {
+  if (run.status !== 'failed' && run.status !== 'stopped') return 'Only a failed or stopped flow run can be retried.';
+  const from = run.steps.findIndex(ended);
+  if (from < 0) return 'Nothing to retry: no step failed or was stopped.';
+  if (envName(run.env) !== envName(opts.env))
+    return `This run used ${envName(run.env)} and the app is on ${envName(opts.env)} now. Switch the app to ${envName(run.env)}, then retry.`;
+  const gone = run.steps.findIndex((s, i) => i >= from && !isIf(s) && !opts.functions.includes(s.function));
+  return gone < 0 ? undefined : `Step ${gone + 1}: function "${(run.steps[gone] as FlatFn).function}" is no longer in this repo.`;
+};
+
+/**
+ * `run` set to go on from the step that failed or was stopped: that step waits again, the run is running,
+ * and passed steps and the values passed along stay, so nothing before it runs again. The failed go moves
+ * to the step's `tries`. A run with no such step comes back unchanged. Check {@link retryProblem} first.
+ */
+export const retriedFlowRun = (run: FlowRun): FlowRun => {
+  const at = run.steps.findIndex(ended);
+  if (at < 0) return run;
+  const steps = run.steps.map((s, i): FlowRunStep => {
+    if (i !== at) return s;
+    const { status, error, runId, input: _input, output, tries, ...step } = s;
+    const last: StepTry = { status: status as StepTry['status'], ...(error && { error }), ...(runId && { runId }), ...(output && { output }) };
+    return { ...step, status: 'waiting', tries: [...(tries ?? []), last] };
+  });
+  const { endedAt: _endedAt, ...rest } = run;
+  return { ...rest, status: 'running', steps };
 };

@@ -6,7 +6,7 @@ import { findFiles, loadRepo, manifestOf, type Manifest, type Repo } from '../di
 import { describeEnvironment, ENV_NAME_ENV, environmentEnv, environmentFile, environmentProblem, listEnvironments, SHARED_ENV_FILE } from '../environments.ts';
 import { applyEvent, emptyRun, EVENTS_ENV, parseLine, type RunView } from '../events.ts';
 import { valueProblem, type Fields } from '../fields.ts';
-import { flatten, flowProblems, flowSummary, fnStepAt, isIf, newFlowRun, nextStepIndex, resolveInput, secretProblems, stepEnded, stepStarted, type FlowDef, type FlowRun } from '../flow.ts';
+import { flatten, flowProblems, flowSummary, fnStepAt, isIf, newFlowRun, nextStepIndex, resolveInput, retriedFlowRun, retryProblem, secretProblems, stepEnded, stepStarted, type FlowDef, type FlowRun } from '../flow.ts';
 import { listFlowRuns, readFlowRun, readOutput, writeFlowRun } from '../flowRuns.ts';
 import { metaOf, type FunctionDef, type FunctionMeta } from '../fn.ts';
 import { hasReport, listRuns, newRunId, readRun, RUN_ID, RUN_ID_ENV, runDir, shownStatus, writeRun, type RunRecord } from '../history.ts';
@@ -464,6 +464,19 @@ const postFlowRun: Handler = async (req, res) => {
   return json(res, 202, { id: flow.id });
 };
 
+const retryFlowRun = async (req: IncomingMessage, res: ServerResponse, id: string) => {
+  if (busy()) return json(res, 409, { error: busy() });
+  if (flowGoing()) return json(res, 409, { error: 'Another flow is running. Runs go one at a time: test accounts are shared.' });
+  const found = flow?.id === id ? flow : readFlowRun(id, ROOT);
+  if (!found) return json(res, 404, { error: 'No such flow run.' });
+  const problem = retryProblem(found, { env: ENV, functions: FUNCTIONS.map((f) => f.id) });
+  if (problem) return json(res, 409, { error: problem });
+  const b = await readBody(req);
+  flow = { ...retriedFlowRun(found), headed: typeof b.headed === 'boolean' ? b.headed : (found as AppFlowRun).headed === true };
+  advanceFlow();
+  return json(res, 202, { id });
+};
+
 const getFlowRun: Handler = (_req, res, url) => {
   const id = url.pathname.replace(/^\/api\/flow-runs\//, '');
   const found = flow?.id === id ? flow : readFlowRun(id, ROOT);
@@ -525,6 +538,8 @@ const routes = async (req: IncomingMessage, res: ServerResponse) => {
   const report = /^\/runs\/([^/]+)\/report\/(.*)$/.exec(url.pathname);
   if (report) return serveReport(res, report[1], report[2]);
   if (req.method === 'GET' && url.pathname.startsWith('/api/runs/')) return getRun(req, res, url);
+  const retry = /^\/api\/flow-runs\/([^/]+)\/retry$/.exec(url.pathname);
+  if (req.method === 'POST' && retry) return retryFlowRun(req, res, decodeURIComponent(retry[1]));
   if (req.method === 'GET' && url.pathname.startsWith('/api/flow-runs/')) return getFlowRun(req, res, url);
   const handler = ROUTES[`${req.method} ${url.pathname}`];
   if (handler) return handler(req, res, url);

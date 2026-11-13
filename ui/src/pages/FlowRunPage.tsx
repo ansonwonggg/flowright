@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { conditionText, isIf } from '../../../src/flow.ts';
 import type { FlowRun, FlowRunStep } from '../api.ts';
 import { pillOf, ReportLink, StatusPill } from '../components/bits.tsx';
 import { FlowCanvas } from '../components/FlowCanvas.tsx';
+import { useDialog } from '../components/Dialog.tsx';
 import { FnTitle } from '../components/FnTitle.tsx';
 import { Log } from '../components/Log.tsx';
 import { Menu, type MenuItem } from '../components/Menu.tsx';
 import { RunHead } from '../components/RunHead.tsx';
 import { Values } from '../components/Values.tsx';
 import { autoSelected } from '../lib/canvas.ts';
+import { targetOf } from '../lib/environment.ts';
 import { duration, when } from '../lib/format.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
-import { useFlowRun, useRun } from '../queries.ts';
+import { useFlowRun, useRetryFlow, useRun } from '../queries.ts';
 
 const IfDetail = ({ step, steps }: { step: FlowRunStep; steps: FlowRun['steps'] }) => {
   if (!isIf(step)) return null;
@@ -43,6 +45,30 @@ const SkipNote = ({ step, steps }: { step: FlowRunStep; steps: FlowRun['steps'] 
   );
 };
 
+const Tries = ({ step, n, flowId }: { step: FlowRunStep; n: number; flowId: string }) => {
+  const tries = step.tries ?? [];
+  if (!tries.length) return null;
+  return (
+    <details className="gap-top tries">
+      <summary className="muted">
+        {tries.length} earlier {tries.length === 1 ? 'try' : 'tries'}
+      </summary>
+      <ol className="tries-list" aria-label={`Step ${n} earlier tries`}>
+        {tries.map((t, i) => (
+          <li key={i}>
+            <span className="inline">
+              <b>Try {i + 1}</b>
+              <StatusPill status={t.status} />
+              {t.runId && <Link to={`/run/${t.runId}?flow=${encodeURIComponent(flowId)}`}>Open in History</Link>}
+            </span>
+            {t.error && <div className="muted">{t.error}</div>}
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+};
+
 /**
  * One flow step's details: title, status, Report ↗ and ⋯ menu, then its error, input (behind the
  * menu), output and log; an IF shows what it tested and which branch it took, a skipped step why.
@@ -69,6 +95,7 @@ const StepDetail = ({ step, n, steps, flowId }: { step: FlowRunStep; n: number; 
     <>
       <div className="card-head">
         <span className="st-title">{isIf(step) ? step.title : <FnTitle title={step.title} />}</span>
+        {step.tries?.length ? <span className="chip try">try {step.tries.length + 1}</span> : null}
         <span className="spacer" />
         <span className="inline">
           <StatusPill status={step.status} testId={`step-${n}-status`} />
@@ -79,6 +106,7 @@ const StepDetail = ({ step, n, steps, flowId }: { step: FlowRunStep; n: number; 
       <IfDetail step={step} steps={steps} />
       {step.status === 'skipped' && <SkipNote step={step} steps={steps} />}
       {step.error && <div className="box bad gap-top">{step.error}</div>}
+      <Tries step={step} n={n} flowId={flowId} />
       {showInput && (
         <div className="gap-top">
           <h3 className="sub">Input</h3>
@@ -161,6 +189,55 @@ export const RunCanvas = ({ run }: { run: FlowRun }) => {
   );
 };
 
+const ended = (s: FlowRunStep) => s.status === 'failed' || s.status === 'stopped';
+
+const doneBefore = (index: number) => {
+  if (index === 0) return '';
+  if (index === 1) return 'Step 1 passed and stays as it is. ';
+  return `Steps 1–${index} passed and stay as they are. `;
+};
+
+const RetryButton = ({ run }: { run: FlowRun }) => {
+  const retry = useRetryFlow();
+  const { confirm, notify, dialog } = useDialog();
+  const index = run.status === 'failed' || run.status === 'stopped' ? run.steps.findIndex(ended) : -1;
+  if (index < 0) return dialog;
+  const n = index + 1;
+  const step = run.steps[index];
+  const onRetry = async () => {
+    const ok = await confirm({
+      title: `Retry from step ${n}?`,
+      body: (
+        <>
+          <p>
+            {doneBefore(index)}Step {n}, {step.title}, runs again with the same inputs, then the rest of the flow.
+          </p>
+          {step.error && <div className="box bad">{step.error}</div>}
+          <p>
+            If step {n} got as far as submitting before it ended, {targetOf(run.env)} may already hold what it made, and running it again can make a
+            second one. Check Records or the site first.
+          </p>
+        </>
+      ),
+      ok: 'Retry',
+    });
+    if (!ok) return;
+    try {
+      await retry.mutateAsync(run.id);
+    } catch (e) {
+      await notify('Could not retry', (e as Error).message);
+    }
+  };
+  return (
+    <>
+      {dialog}
+      <button type="button" className="btn small primary" onClick={onRetry} disabled={retry.isPending}>
+        Retry step {n}
+      </button>
+    </>
+  );
+};
+
 export const FlowRunPage = () => {
   const { id = '' } = useParams();
   const { data: run, error, isPending } = useFlowRun(id);
@@ -200,6 +277,7 @@ export const FlowRunPage = () => {
             </button>
           ))}
         </div>
+        <RetryButton run={run} />
       </RunHead>
       <p className="lead">
         Started {when(run.startedAt)}

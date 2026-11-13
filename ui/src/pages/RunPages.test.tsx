@@ -30,14 +30,15 @@ const flowRun = (over: Partial<FlowRun> = {}): FlowRun => ({
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-type Server = { run?: RunInfo; flow?: FlowRun };
+type Server = { run?: RunInfo; flow?: FlowRun; retry?: Response };
 
-const serve = ({ run = fnRun(), flow = flowRun() }: Server) => {
+const serve = ({ run = fnRun(), flow = flowRun(), retry }: Server) => {
   const fetch = vi.fn(async (url: string, init?: RequestInit) => {
     const path = String(url);
     if (path === '/api/meta') return json(META);
     if (path === '/api/records') return json([]);
     if (path === '/api/run/stop' && init?.method === 'POST') return json({ id: run.id });
+    if (path.endsWith('/retry') && init?.method === 'POST') return retry ?? json({ id: flow.id }, 202);
     if (path.startsWith('/api/runs/')) return json({ run, log: ['line 1'] });
     if (path.startsWith('/api/flow-runs/')) return json(flow);
     return json({ error: `unexpected ${path}` }, 404);
@@ -47,6 +48,16 @@ const serve = ({ run = fnRun(), flow = flowRun() }: Server) => {
 };
 
 const stopCalls = (fetch: ReturnType<typeof serve>) => fetch.mock.calls.filter(([url]) => url === '/api/run/stop');
+const retryCalls = (fetch: ReturnType<typeof serve>) => fetch.mock.calls.filter(([url, init]) => String(url).endsWith('/retry') && init?.method === 'POST');
+
+const failedAtVet = (over: Partial<FlowRun> = {}) => {
+  const base = flowRun();
+  return flowRun({
+    status: 'failed',
+    steps: [base.steps[0], { ...base.steps[1], status: 'failed', output: undefined, error: 'The site did not reach the expected screen or status in time' }, { function: 'activate-web', title: '[Web] Activate', status: 'waiting' }],
+    ...over,
+  });
+};
 
 const at = (entry: string) =>
   render(
@@ -237,6 +248,84 @@ describe('FlowRunPage', () => {
     serve({ flow: flowRun({ status: 'stopped' }) });
     at(`/flow-run/${FLOW_ID}`);
     expect(await screen.findByTestId('flow-status')).toHaveClass('pill', 'interrupted');
+  });
+
+  describe('Retry', () => {
+    it('a failed flow offers to retry from the step that failed; a passed or running one does not', async () => {
+      serve({ flow: failedAtVet() });
+      const { unmount } = at(`/flow-run/${FLOW_ID}`);
+      expect(await screen.findByRole('button', { name: 'Retry step 2' })).toBeInTheDocument();
+      unmount();
+      serve({});
+      const second = at(`/flow-run/${FLOW_ID}`);
+      await screen.findByTestId('flow-status');
+      expect(screen.queryByRole('button', { name: /^Retry/ })).toBeNull();
+      second.unmount();
+      serve({ flow: flowRun({ status: 'running', endedAt: undefined }) });
+      at(`/flow-run/${FLOW_ID}`);
+      await screen.findByTestId('flow-status');
+      expect(screen.queryByRole('button', { name: /^Retry/ })).toBeNull();
+    });
+
+    it('a stopped flow can be retried too', async () => {
+      const failed = failedAtVet();
+      serve({ flow: { ...failed, status: 'stopped', steps: failed.steps.map((s, i) => (i === 1 ? { ...s, status: 'stopped' as const } : s)) } });
+      at(`/flow-run/${FLOW_ID}`);
+      expect(await screen.findByRole('button', { name: 'Retry step 2' })).toBeInTheDocument();
+    });
+
+    it('a failed flow with no failed step has no Retry', async () => {
+      serve({ flow: flowRun({ status: 'failed' }) });
+      at(`/flow-run/${FLOW_ID}`);
+      await screen.findByTestId('flow-status');
+      expect(screen.queryByRole('button', { name: /^Retry/ })).toBeNull();
+    });
+
+    it('asks first, saying what stays, what runs again, and that the step may already have made something', async () => {
+      const fetch = serve({ flow: failedAtVet({ env: 'dev' }) });
+      at(`/flow-run/${FLOW_ID}`);
+      await userEvent.click(await screen.findByRole('button', { name: 'Retry step 2' }));
+      const dialog = screen.getByRole('dialog', { name: 'Retry from step 2?' });
+      expect(dialog).toHaveTextContent('Step 1 passed and stays as it is.');
+      expect(dialog).toHaveTextContent('Step 2, [Admin] Vet, runs again with the same inputs, then the rest of the flow.');
+      expect(dialog).toHaveTextContent('The site did not reach the expected screen or status in time');
+      expect(dialog).toHaveTextContent('the dev environment may already hold what it made');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      expect(retryCalls(fetch)).toHaveLength(0);
+    });
+
+    it('a failure at step 1 says nothing about passed steps', async () => {
+      const failed = failedAtVet();
+      serve({ flow: { ...failed, steps: [{ ...failed.steps[0], status: 'failed', output: undefined }, { ...failed.steps[1], status: 'waiting', error: undefined }] } });
+      at(`/flow-run/${FLOW_ID}`);
+      await userEvent.click(await screen.findByRole('button', { name: 'Retry step 1' }));
+      expect(screen.getByRole('dialog')).not.toHaveTextContent('passed and');
+    });
+
+    it('several passed steps are named as a range', async () => {
+      const failed = failedAtVet();
+      serve({ flow: { ...failed, steps: [failed.steps[0], { ...failed.steps[0], title: 'Two' }, { ...failed.steps[1], title: 'Three' }] } });
+      at(`/flow-run/${FLOW_ID}`);
+      await userEvent.click(await screen.findByRole('button', { name: 'Retry step 3' }));
+      expect(screen.getByRole('dialog')).toHaveTextContent('Steps 1–2 passed and stay as they are.');
+    });
+
+    it('confirmed, retries this flow run', async () => {
+      const fetch = serve({ flow: failedAtVet() });
+      at(`/flow-run/${FLOW_ID}`);
+      await userEvent.click(await screen.findByRole('button', { name: 'Retry step 2' }));
+      await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Retry' }));
+      expect(retryCalls(fetch).map(([url]) => url)).toEqual([`/api/flow-runs/${FLOW_ID}/retry`]);
+    });
+
+    it('says why when the server refuses', async () => {
+      serve({ flow: failedAtVet({ env: 'uat' }), retry: json({ error: 'This run used uat and the app is on dev now. Switch the app to uat, then retry.' }, 409) });
+      at(`/flow-run/${FLOW_ID}`);
+      await userEvent.click(await screen.findByRole('button', { name: 'Retry step 2' }));
+      await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Retry' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Could not retry' });
+      expect(dialog).toHaveTextContent('Switch the app to uat, then retry.');
+    });
   });
 
   it('lists the values passed along', async () => {

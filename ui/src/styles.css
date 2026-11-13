@@ -250,6 +250,10 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .chip.done { background: var(--ok-bg); color: var(--ok); }
 .chip.warn { background: var(--warn-bg); color: var(--warn); }
 .chip.env-chip { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+.chip.try { background: var(--warn-bg); color: var(--warn); font-weight: 650; }
+.tries summary { cursor: pointer; font-size: 13px; }
+.tries-list { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.tries-list .muted { margin-top: 2px; overflow-wrap: anywhere; }
 .env-table .env-value { overflow-wrap: anywhere; }
 .env-active { opacity: .75; font-weight: 500; }
 .env-section .card-head { padding: 14px 10px 4px; }

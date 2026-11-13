@@ -232,6 +232,57 @@ describe('flow run Steps', () => {
     expect(screen.queryByRole('region', { name: 'Step 1 log' })).toBeNull();
   });
 
+  describe('earlier tries', () => {
+    const retried: FlowRun = {
+      ...run,
+      steps: [
+        run.steps[0],
+        {
+          ...run.steps[1],
+          status: 'passed',
+          error: undefined,
+          output: { status: 'SUCCEED' },
+          runId: 'r3',
+          tries: [
+            { status: 'failed', error: 'Timed out waiting for SUCCEED', runId: 'r2' },
+            { status: 'stopped', error: "can't start: needs Mobile" },
+          ],
+        },
+        run.steps[2],
+      ],
+    };
+
+    it('a retried step says which try it is on', () => {
+      show(retried);
+      expect(within(stepEl(2)).getByText('try 3')).toBeInTheDocument();
+      expect(within(stepEl(1)).queryByText(/^try /)).toBeNull();
+    });
+
+    it('lists each earlier try, oldest first, with its status, error and run in History', async () => {
+      show(retried);
+      await userEvent.click(within(stepEl(2)).getByText('2 earlier tries'));
+      const tries = within(within(stepEl(2)).getByRole('list', { name: 'Step 2 earlier tries' })).getAllByRole('listitem');
+      expect(tries).toHaveLength(2);
+      expect(tries[0]).toHaveTextContent('Try 1');
+      expect(tries[0]).toHaveTextContent('failed');
+      expect(tries[0]).toHaveTextContent('Timed out waiting for SUCCEED');
+      expect(within(tries[0]).getByRole('link', { name: 'Open in History' })).toHaveAttribute('href', '/run/r2?flow=c');
+      expect(tries[1]).toHaveTextContent('Try 2');
+      expect(within(tries[1]).queryByRole('link')).toBeNull();
+    });
+
+    it('one earlier try reads in the singular', () => {
+      show({ ...retried, steps: [{ ...retried.steps[1], tries: retried.steps[1].tries!.slice(0, 1) }] });
+      expect(screen.getByText('1 earlier try')).toBeInTheDocument();
+      expect(screen.getByText('try 2')).toBeInTheDocument();
+    });
+
+    it('a step never retried shows no tries', () => {
+      show(run);
+      expect(screen.queryByText(/earlier tr/)).toBeNull();
+    });
+  });
+
   it('a log that cannot be loaded says so', async () => {
     show({ ...run, steps: [{ ...run.steps[1], runId: 'gone' }] });
     expect(await screen.findByText('No log: no such run')).toBeInTheDocument();

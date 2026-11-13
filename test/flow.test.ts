@@ -12,6 +12,8 @@ import {
   nextStepIndex,
   producedBefore,
   resolveInput,
+  retriedFlowRun,
+  retryProblem,
   secretProblems,
   stepEnded,
   stepStarted,
@@ -159,6 +161,101 @@ describe('flow run', () => {
   });
 });
 
+describe('retry', () => {
+  const fresh = () => newFlowRun(FNS, WEB, { id: 'r', name: 'web', now: 1 });
+  const failedAtVet = (end: { status: 'failed' | 'stopped'; error?: string; output?: Record<string, string> } = { status: 'failed', error: 'Timeout 900000ms exceeded' }) => {
+    const run = stepEnded(stepStarted(fresh(), 0, { company: 'Acme' }, 'run-1'), { status: 'passed', output: { ref: 'DMD1', mobile: '9' } }, 2);
+    return stepEnded(stepStarted(run, 1, { ref: 'DMD1' }, 'run-2'), end, 3);
+  };
+  const ALL = ['create', 'vet', 'activate'];
+
+  describe('retriedFlowRun', () => {
+    it('puts the failed step back to waiting and the run back to running, keeping the values passed along', () => {
+      const run = retriedFlowRun(failedAtVet());
+      assert.equal(run.status, 'running');
+      assert.equal('endedAt' in run, false);
+      assert.deepEqual(run.values, { ref: 'DMD1', mobile: '9' });
+      assert.deepEqual(run.steps.map((s) => s.status), ['passed', 'waiting', 'waiting']);
+      assert.equal(nextStepIndex(run), 1);
+    });
+    it('keeps passed steps as they were, so nothing before the failure runs again', () => {
+      const before = failedAtVet();
+      assert.deepEqual(retriedFlowRun(before).steps[0], before.steps[0]);
+    });
+    it('keeps the failed try on the step, with its error and History run, and clears them from the step', () => {
+      const step = retriedFlowRun(failedAtVet()).steps[1];
+      assert.deepEqual(step.tries, [{ status: 'failed', error: 'Timeout 900000ms exceeded', runId: 'run-2' }]);
+      for (const gone of ['error', 'runId', 'input', 'output']) assert.equal(gone in step, false, `${gone} is cleared`);
+    });
+    it('keeps what a failed try gave out on that try, never in the values passed along', () => {
+      const run = retriedFlowRun(failedAtVet({ status: 'failed', output: { status: 'X' } }));
+      assert.deepEqual(run.steps[1].tries, [{ status: 'failed', runId: 'run-2', output: { status: 'X' } }]);
+      assert.deepEqual(run.values, { ref: 'DMD1', mobile: '9' });
+    });
+    it('a stopped run is retried the same way, the try marked stopped', () => {
+      const run = retriedFlowRun(failedAtVet({ status: 'stopped' }));
+      assert.equal(run.status, 'running');
+      assert.deepEqual(run.steps[1].tries, [{ status: 'stopped', runId: 'run-2' }]);
+    });
+    it('a second retry adds to the tries, oldest first', () => {
+      let run = retriedFlowRun(failedAtVet());
+      run = stepEnded(stepStarted(run, 1, { ref: 'DMD1' }, 'run-3'), { status: 'failed', error: 'again' }, 4);
+      run = retriedFlowRun(run);
+      assert.deepEqual(run.steps[1].tries?.map((t) => [t.runId, t.error]), [['run-2', 'Timeout 900000ms exceeded'], ['run-3', 'again']]);
+    });
+    it('a retried step that passes keeps its tries and the run goes on to pass', () => {
+      let run = retriedFlowRun(failedAtVet());
+      run = stepEnded(stepStarted(run, 1, { ref: 'DMD1' }, 'run-3'), { status: 'passed', output: { status: 'SUCCEED' } }, 4);
+      run = stepEnded(stepStarted(run, 2, {}, 'run-4'), { status: 'passed' }, 5);
+      assert.deepEqual({ status: run.status, endedAt: run.endedAt }, { status: 'passed', endedAt: 5 });
+      assert.equal(run.steps[1].tries?.length, 1);
+      assert.equal(run.steps[1].runId, 'run-3');
+    });
+    it('a step that could not start (no History run) is retried too', () => {
+      const run = retriedFlowRun(stepEnded(stepStarted(fresh(), 0, {}), { status: 'failed', error: "can't start: x" }, 2));
+      assert.deepEqual(run.steps[0].tries, [{ status: 'failed', error: "can't start: x" }]);
+      assert.equal(nextStepIndex(run), 0);
+    });
+    it('a run with nothing to retry comes back unchanged', () => {
+      const running = fresh();
+      assert.equal(retriedFlowRun(running), running);
+      let passed = stepEnded(stepStarted(fresh(), 0, {}), { status: 'passed' }, 2);
+      passed = stepEnded(stepStarted(passed, 1, {}), { status: 'passed' }, 3);
+      passed = stepEnded(stepStarted(passed, 2, {}), { status: 'passed' }, 4);
+      assert.equal(retriedFlowRun(passed), passed);
+    });
+  });
+
+  describe('retryProblem', () => {
+    it('none for a failed or stopped run in the same environment, its functions all known', () => {
+      assert.equal(retryProblem(failedAtVet(), { functions: ALL }), undefined);
+      assert.equal(retryProblem(failedAtVet({ status: 'stopped' }), { functions: ALL }), undefined);
+      assert.equal(retryProblem({ ...failedAtVet(), env: 'uat' }, { env: 'uat', functions: ALL }), undefined);
+    });
+    it('a running or passed run cannot be retried', () => {
+      assert.match(retryProblem(fresh(), { functions: ALL }) ?? '', /only a failed or stopped/i);
+      assert.match(retryProblem({ ...failedAtVet(), status: 'passed' }, { functions: ALL }) ?? '', /only a failed or stopped/i);
+    });
+    it('a failed run with no failed or stopped step has nothing to retry', () =>
+      assert.match(retryProblem({ ...fresh(), status: 'failed' }, { functions: ALL }) ?? '', /no step failed/i));
+    it('names both environments when the app is on another one', () => {
+      assert.equal(
+        retryProblem({ ...failedAtVet(), env: 'uat' }, { env: 'dev', functions: ALL }),
+        'This run used uat and the app is on dev now. Switch the app to uat, then retry.',
+      );
+      assert.equal(
+        retryProblem(failedAtVet(), { env: 'dev', functions: ALL }),
+        'This run used .env.local and the app is on dev now. Switch the app to .env.local, then retry.',
+      );
+      assert.match(retryProblem({ ...failedAtVet(), env: 'uat' }, { functions: ALL }) ?? '', /used uat and the app is on \.env\.local/);
+    });
+    it('names a step whose function is gone, from the failed one on', () => {
+      assert.equal(retryProblem(failedAtVet(), { functions: ['create', 'vet'] }), 'Step 3: function "activate" is no longer in this repo.');
+      assert.equal(retryProblem(failedAtVet(), { functions: ['vet', 'activate'] }), undefined);
+    });
+  });
+});
+
 describe('IF steps', () => {
   const BR = [
     meta({ id: 'enrol', record: 'member', starts: true, outputs: ['reg', 'status', 'enr'] }),
@@ -292,6 +389,14 @@ describe('IF steps', () => {
       const run = stepEnded(stepStarted(fresh(), 0, {}), { status: 'failed' }, 2);
       assert.deepEqual(statuses(run), ['failed', 'waiting', 'waiting', 'waiting', 'waiting']);
     });
+      it('a failure in an IF arm resumes there; the IF stays decided and the other arm skipped', () => {
+        let run = fresh();
+        run = stepEnded(stepStarted(run, 0, {}), { status: 'passed', output: { status: 'NEEDS_DDE' } }, 2);
+        run = retriedFlowRun(stepEnded(stepStarted(run, 2, {}), { status: 'failed', error: 'boom' }, 3));
+        assert.deepEqual(run.steps.map((s) => s.status), ['passed', 'passed', 'waiting', 'skipped', 'waiting']);
+        assert.equal(run.steps[1].taken, 'then');
+        assert.equal(nextStepIndex(run), 2);
+      });
   });
 
   describe('flowSummary and functionsIn', () => {

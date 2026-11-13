@@ -86,6 +86,7 @@ export const api = {
   saveFlow: (body: { name: string; flow: FlowDef; overwrite: boolean }) => post<{ file: string }>('/api/flows', body),
   flowRuns: () => request<FlowRun[]>('/api/flow-runs'),
   flowRun: (id: string) => request<FlowRun>(`/api/flow-runs/${encodeURIComponent(id)}`),
+  retryFlow: (id: string) => post<{ id: string }>(`/api/flow-runs/${encodeURIComponent(id)}/retry`, {}),
   environments: () => request<Environments>('/api/environments'),
   chooseEnvironment: (name: string | null) => post<{ active: string | null }>('/api/environments/active', { name }),
 };

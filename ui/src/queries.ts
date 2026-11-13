@@ -46,6 +46,18 @@ export const useStartFlow = () => {
   return useMutation({ mutationFn: api.startFlow, onSuccess: () => client.invalidateQueries({ queryKey: keys.flowRuns }) });
 };
 
+/** Retries a failed or stopped flow run from the step it ended at; the server then sends the run as it goes. */
+export const useRetryFlow = () => {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: api.retryFlow,
+    onSuccess: (_data, id) => {
+      client.invalidateQueries({ queryKey: keys.flowRun(id) });
+      client.invalidateQueries({ queryKey: keys.flowRuns });
+    },
+  });
+};
+
 export const useSaveFlow = () => {
   const client = useQueryClient();
   return useMutation({ mutationFn: api.saveFlow, onSuccess: () => client.invalidateQueries({ queryKey: keys.presets }) });

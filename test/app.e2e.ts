@@ -90,6 +90,39 @@ describe('flowkit app on the example repo', { timeout: 240_000 }, () => {
     assert.equal(listed.find((r: { id: string }) => r.id === linked.id)?.file, saved.file, 'kept on disk, not only in memory');
   });
 
+  it('retries a failed flow run from the step that failed, keeping the try, and refuses what it cannot retry', async () => {
+    const unknown = 'DMD9999999999999999';
+    const flow = { title: 'Activate unknown', steps: [{ function: 'activate-er-user-web', values: { reference_no: unknown } }] };
+    const started = await post('/api/flow/run', { name: 'Activate unknown', flow, headed: false });
+    assert.equal(started.status, 202, JSON.stringify(started.body));
+    const id = started.body.id;
+    const failed = await waitFor(() => get(`/api/flow-runs/${id}`), (r) => r?.status === 'failed', 30_000);
+    assert.match(failed.steps[0].error, /can't start/);
+
+    const retried = await post(`/api/flow-runs/${id}/retry`, {});
+    assert.equal(retried.status, 202, JSON.stringify(retried.body));
+    assert.equal(retried.body.id, id, 'the same flow run goes on, no new one');
+    const again = await waitFor(() => get(`/api/flow-runs/${id}`), (r) => r?.status === 'failed' && r.steps[0].tries?.length === 1, 30_000);
+    assert.match(again.steps[0].tries[0].error, /can't start/);
+    assert.equal((await get('/api/flow-runs')).filter((r: { name: string }) => r.name === 'Activate unknown').length, 1, 'kept on disk as one run');
+
+    const otherEnv = path.join(ROOT, 'example/.env.retry.local');
+    writeFileSync(otherEnv, 'RETRY=1\n');
+    try {
+      assert.equal((await post('/api/environments/active', { name: 'retry' })).status, 200);
+      const refused = await post(`/api/flow-runs/${id}/retry`, {});
+      assert.equal(refused.status, 409);
+      assert.match(refused.body.error, /used \.env\.local and the app is on retry now/);
+    } finally {
+      await post('/api/environments/active', { name: null });
+      rmSync(otherEnv, { force: true });
+    }
+
+    const passedOne = (await get('/api/flow-runs')).find((r: { status: string }) => r.status === 'passed');
+    if (passedOne) assert.equal((await post(`/api/flow-runs/${passedOne.id}/retry`, {})).status, 409);
+    assert.equal((await post('/api/flow-runs/20990101-000000-zzzz/retry', {})).status, 404);
+  });
+
   it('shows each environment with secrets hidden, switches between runs, and keeps the one a run used', async () => {
     const file = path.join(ROOT, 'example/.env.e2e.local');
     writeFileSync(file, 'E2E_PORTAL_URL=https://e2e.example\nE2E_PASSWORD=hunter2\n');
