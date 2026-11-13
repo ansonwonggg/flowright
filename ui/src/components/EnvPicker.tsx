@@ -5,7 +5,9 @@ const NONE = '';
 
 /**
  * The header's environment switch: which `.env.<name>.local` the next run uses on top of `.env.local`.
- * Hidden when the repo has no environment files and none is active. Locked while a run goes, since a run
+ * Hidden when the repo has no environment files and none is active. "none" is listed only while it is
+ * active (no `--env` / `FLOWKIT_ENV` at start), so once an environment is chosen the switch can't go back
+ * to `.env.local` alone. Locked while a run goes, since a run
  * keeps the environment it started in; the server refuses a switch then too.
  */
 export const EnvPicker = () => {
@@ -26,7 +28,7 @@ export const EnvPicker = () => {
       {dialog}
       <span>Env</span>
       <select aria-label="Environment" value={data.active ?? NONE} disabled={Boolean(live) || choose.isPending} onChange={(e) => onChange(e.target.value)}>
-        <option value={NONE}>none (.env.local)</option>
+        {!data.active && <option value={NONE}>none (.env.local)</option>}
         {data.environments.map((e) => (
           <option key={e.name} value={e.name}>
             {e.name}

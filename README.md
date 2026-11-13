@@ -203,7 +203,8 @@ and presets stay the same; only the values change.
 - Pick one with `--env <name>` on `run` and `app`, or `FLOWKIT_ENV=<name>`. With none, runs use
   `.env.local` alone, as before. A name with no file stops the run before anything starts; a run never
   falls back to another environment.
-- The app has an **Env** switch in its top bar (locked while a run goes) and an **Environments** page
+- The app has an **Env** switch in its top bar (locked while a run goes; "none" is listed only while
+  the app is in it, so start it with `--env` to keep every run in a named environment) and an **Environments** page
   listing every var of each, with the file it comes from. It only shows them; edit the files in your
   editor. Secrets (a name ending in `_PASSWORD`, `_SECRET`, `_KEY`, `_TOKEN`, `_PASSWD`, `_PWD`,
   `_CREDENTIAL(S)` or `_PASSPHRASE`) never leave the server: the page says only whether they are set.
@@ -277,6 +278,13 @@ A select may give `labels` for its options.
   its output; a failed or stopped one its error and log; an IF what it tested and which branch it took. A
   finished step has a **Report ↗** button that opens its Playwright report in a new tab, when one was
   kept. Each step's ⋯ menu shows its input, toggles its log, and opens its run in History.
+- **Retry step N:** a failed or stopped flow run goes on from the step that ended it, in the same run.
+  Steps that passed don't run again, so nothing they made is made twice; the failed step gets the same
+  inputs from the values passed along. It asks first, because a step that got as far as submitting may
+  already have made something. The failed go stays on the step as an earlier try (status, error, its run
+  in History), and the step shows `try 2`, `try 3`… Refused while another run goes, when the app is on a
+  different environment from the run's, or when a function from that step on is gone. The run keeps
+  its headed / headless choice. App only: `flowright run` has no retry.
 - Confirmations and errors open in the page, never as browser pop-ups.
 - **Run, History, Records:** a live timeline with Stop, the failure explained, the records made and
   their logins, the Playwright report and the log.

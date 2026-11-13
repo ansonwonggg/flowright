@@ -108,18 +108,19 @@ describe('EnvPicker', () => {
     show(<EnvPicker />);
     const select = await screen.findByRole('combobox', { name: 'Environment' });
     await vi.waitFor(() => expect(select).toHaveValue('uat'));
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['none (.env.local)', 'dev', 'uat']);
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['dev', 'uat']);
     await userEvent.selectOptions(select, 'dev');
     expect(fetch.mock.calls.filter(([url]) => url === '/api/environments/active').map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ name: 'dev' }]);
   });
 
-  it('none sends null', async () => {
-    const fetch = serve({});
+  it('lists none only while it is active, so the switch shows what runs use', async () => {
+    const fetch = serve({ envs: { ...ENVS, active: null } });
     show(<EnvPicker />);
     const select = await screen.findByRole('combobox', { name: 'Environment' });
-    await vi.waitFor(() => expect(select).toHaveValue('uat'));
-    await userEvent.selectOptions(select, '');
-    expect(fetch.mock.calls.filter(([url]) => url === '/api/environments/active').map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ name: null }]);
+    await vi.waitFor(() => expect(select).toHaveValue(''));
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['none (.env.local)', 'dev', 'uat']);
+    await userEvent.selectOptions(select, 'uat');
+    expect(fetch.mock.calls.filter(([url]) => url === '/api/environments/active').map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ name: 'uat' }]);
   });
 
   it('is locked while a run goes', async () => {
