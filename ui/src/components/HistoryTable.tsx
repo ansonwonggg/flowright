@@ -56,7 +56,7 @@ const StepRow = ({ s, flowId, onOpenRun }: { s: FlowStepRow; flowId: string } & 
   return (
     <tr className={`step-row${run ? ' click' : ''}`} onClick={run ? () => onOpenRun(run.id, flowId) : undefined}>
       <td className="muted nowrap">{run ? when(run.startedAt) : ''}</td>
-      <td className="nowrap step-cell">
+      <td className="step-cell">
         <span className="muted">Step {s.n}</span> <FnTitle title={s.step.title} />
         {(s.step.tries?.length ?? 0) > 0 && (
           <>
@@ -89,7 +89,7 @@ const FlowRows = ({ row, onOpenRun, onOpenFlow }: { row: Extract<HistoryRow, { k
     <>
       <tr className="click flow-row" onClick={() => onOpenFlow(flow.id)}>
         <td className="muted nowrap">{when(flow.startedAt)}</td>
-        <td className="nowrap">
+        <td className="flow-cell">
           <button
             type="button"
             className="btn small expander"
@@ -146,7 +146,7 @@ const FlowRows = ({ row, onOpenRun, onOpenFlow }: { row: Extract<HistoryRow, { k
  * @param onOpenFlow - a flow row was clicked, or its retry was accepted.
  */
 export const HistoryTable = ({ rows, onOpenRun, onOpenFlow }: { rows: HistoryRow[] } & Opens) => (
-  <table>
+  <table className="history-table">
     <thead>
       <tr>
         <th>Started</th>

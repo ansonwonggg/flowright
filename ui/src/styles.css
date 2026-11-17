@@ -601,3 +601,7 @@ section.fn td:first-child, section.fn th:first-child { padding-left: 18px; }
 .step-row .step-cell { padding-left: 42px; }
 .retry-cell { display: block; margin-top: 6px; }
 .flow-note { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.history-table { table-layout: auto; }
+.history-table .flow-cell { min-width: 220px; max-width: 360px; }
+.history-table .step-cell { max-width: 360px; }
+section.tight:has(> .history-table) { overflow-x: auto; }

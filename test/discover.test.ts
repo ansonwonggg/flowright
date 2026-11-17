@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { findFiles, loadRepo, manifestOf } from '../src/discover.ts';
 import type { FunctionMeta } from '../src/fn.ts';
 import { readFlowRun } from '../src/flowRuns.ts';
+import { RUN_ID } from '../src/history.ts';
 import type { Values } from '../src/io.ts';
 import { runFlow } from '../src/runner.ts';
 
@@ -210,6 +211,27 @@ describe('runFlow with a fake exec', () => {
       assert.deepEqual(run.steps.map((s) => s.status), statuses);
       assert.equal(run.status, 'passed');
     }
+  });
+
+  it('gives each step its own History run id, passes it to exec and keeps it on the step, failed one included', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'flowkit-'));
+    const given: string[] = [];
+    const startedWith: (string | undefined)[] = [];
+    const run = await runFlow(root, metas, flow, {
+      onChange: (r) => {
+        const going = r.steps.find((s) => s.status === 'running');
+        if (going) startedWith.push(going.runId);
+      },
+      exec: async (fn, _input, _step, runId) => {
+        given.push(runId);
+        return fn.id === 'b' ? { status: 'failed', error: 'boom' } : { status: 'passed', output: { ref: 'DMD1' } };
+      },
+    });
+    assert.equal(given.length, 2);
+    for (const id of given) assert.match(id, RUN_ID);
+    assert.notEqual(given[0], given[1]);
+    assert.deepEqual(startedWith, given);
+    assert.deepEqual(run.steps.map((s) => s.runId), [given[0], given[1], undefined]);
   });
 
   it('a flow without a title is named "flow"; a name option wins', async () => {

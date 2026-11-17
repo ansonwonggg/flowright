@@ -4,11 +4,14 @@ import path from 'node:path';
 import type { FunctionMeta } from './fn.ts';
 import { fnStepAt, newFlowRun, nextStepIndex, resolveInput, stepEnded, stepStarted, type FlowDef, type FlowRun } from './flow.ts';
 import { FLOW_RUNS_DIR, writeFlowRun } from './flowRuns.ts';
-import { newRunId } from './history.ts';
+import { newRunId, RUN_ID_ENV } from './history.ts';
 import { INPUT_ENV, OUTPUT_ENV, parseValues, type Values } from './io.ts';
 
-/** How one function runs: given its inputs, it resolves with how it ended and what it gave out. */
-export type Exec = (fn: FunctionMeta, input: Values, step: number) => Promise<{ status: 'passed' | 'failed' | 'stopped'; output?: Values; error?: string }>;
+/**
+ * How one function runs: given its inputs, it resolves with how it ended and what it gave out. `runId` is the
+ * History run id the step is kept under; the exec must start the run under it so the flow can find it.
+ */
+export type Exec = (fn: FunctionMeta, input: Values, step: number, runId: string) => Promise<{ status: 'passed' | 'failed' | 'stopped'; output?: Values; error?: string }>;
 
 /**
  * An {@link Exec} that runs each function as its own Playwright run: `npx playwright test --project=<id>`
@@ -17,13 +20,13 @@ export type Exec = (fn: FunctionMeta, input: Values, step: number) => Promise<{ 
  */
 export const playwrightExec =
   (root: string, runId: string, options: { headed?: boolean } = {}): Exec =>
-  (fn, input, step) =>
+  (fn, input, step, stepRunId) =>
     new Promise((resolve) => {
       const dir = path.join(root, FLOW_RUNS_DIR, runId);
       mkdirSync(dir, { recursive: true });
       const outFile = path.join(dir, `${step}-${fn.id}.json`);
       const args = ['playwright', 'test', '-c', path.join(root, 'playwright.config.ts'), `--project=${fn.id}`, ...(options.headed ? ['--headed'] : [])];
-      const child = spawn('npx', args, { cwd: root, stdio: 'inherit', env: { ...process.env, [INPUT_ENV]: JSON.stringify(input), [OUTPUT_ENV]: outFile } });
+      const child = spawn('npx', args, { cwd: root, stdio: 'inherit', env: { ...process.env, [INPUT_ENV]: JSON.stringify(input), [OUTPUT_ENV]: outFile, [RUN_ID_ENV]: stepRunId } });
       let stopped = false;
       const stop = () => {
         stopped = true;
@@ -71,9 +74,10 @@ export const runFlow = async (
     const step = fnStepAt(run, i);
     const fn = fns.find((f) => f.id === step.function)!;
     const input = resolveInput(fn, step, run.values);
-    run = stepStarted(run, i, input);
+    const stepRunId = newRunId(new Date(now()));
+    run = stepStarted(run, i, input, stepRunId);
     save(run);
-    run = stepEnded(run, await exec(fn, input, i + 1), now());
+    run = stepEnded(run, await exec(fn, input, i + 1, stepRunId), now());
     save(run);
   }
   return run;
