@@ -284,10 +284,13 @@ A select may give `labels` for its options.
   already have made something. The failed go stays on the step as an earlier try (status, error, its run
   in History), and the step shows `try 2`, `try 3`… Refused while another run goes, when the app is on a
   different environment from the run's, or when a function from that step on is gone. The run keeps
-  its headed / headless choice. App only: `flowright run` has no retry.
+  its headed / headless choice. App only: `flowright run` has no retry. The button is also on a
+  failed flow's row in History, and on the run page of the step that ended it.
 - Confirmations and errors open in the page, never as browser pop-ups.
 - **Run, History, Records:** a live timeline with Stop, the failure explained, the records made and
-  their logins, the Playwright report and the log.
+  their logins, the Playwright report and the log. History lists a flow run as one row (steps passed,
+  the step that failed); ▸ shows its steps, each opening its own run. A run a flow made says which step
+  of which flow it was, even when opened straight from History.
 
 One run at a time.
 

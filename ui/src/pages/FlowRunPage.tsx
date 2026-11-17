@@ -4,17 +4,16 @@ import { conditionText, isIf } from '../../../src/flow.ts';
 import type { FlowRun, FlowRunStep } from '../api.ts';
 import { pillOf, ReportLink, StatusPill } from '../components/bits.tsx';
 import { FlowCanvas } from '../components/FlowCanvas.tsx';
-import { useDialog } from '../components/Dialog.tsx';
 import { FnTitle } from '../components/FnTitle.tsx';
 import { Log } from '../components/Log.tsx';
 import { Menu, type MenuItem } from '../components/Menu.tsx';
+import { RetryButton } from '../components/RetryButton.tsx';
 import { RunHead } from '../components/RunHead.tsx';
 import { Values } from '../components/Values.tsx';
 import { autoSelected } from '../lib/canvas.ts';
-import { targetOf } from '../lib/environment.ts';
 import { duration, when } from '../lib/format.ts';
 import { readPref, writePref } from '../lib/hooks.ts';
-import { useFlowRun, useRetryFlow, useRun } from '../queries.ts';
+import { useFlowRun, useRun } from '../queries.ts';
 
 const IfDetail = ({ step, steps }: { step: FlowRunStep; steps: FlowRun['steps'] }) => {
   if (!isIf(step)) return null;
@@ -185,55 +184,6 @@ export const RunCanvas = ({ run }: { run: FlowRun }) => {
           <StepDetail key={selected} step={step} n={selected + 1} steps={run.steps} flowId={run.id} />
         </section>
       )}
-    </>
-  );
-};
-
-const ended = (s: FlowRunStep) => s.status === 'failed' || s.status === 'stopped';
-
-const doneBefore = (index: number) => {
-  if (index === 0) return '';
-  if (index === 1) return 'Step 1 passed and stays as it is. ';
-  return `Steps 1–${index} passed and stay as they are. `;
-};
-
-const RetryButton = ({ run }: { run: FlowRun }) => {
-  const retry = useRetryFlow();
-  const { confirm, notify, dialog } = useDialog();
-  const index = run.status === 'failed' || run.status === 'stopped' ? run.steps.findIndex(ended) : -1;
-  if (index < 0) return dialog;
-  const n = index + 1;
-  const step = run.steps[index];
-  const onRetry = async () => {
-    const ok = await confirm({
-      title: `Retry from step ${n}?`,
-      body: (
-        <>
-          <p>
-            {doneBefore(index)}Step {n}, {step.title}, runs again with the same inputs, then the rest of the flow.
-          </p>
-          {step.error && <div className="box bad">{step.error}</div>}
-          <p>
-            If step {n} got as far as submitting before it ended, {targetOf(run.env)} may already hold what it made, and running it again can make a
-            second one. Check Records or the site first.
-          </p>
-        </>
-      ),
-      ok: 'Retry',
-    });
-    if (!ok) return;
-    try {
-      await retry.mutateAsync(run.id);
-    } catch (e) {
-      await notify('Could not retry', (e as Error).message);
-    }
-  };
-  return (
-    <>
-      {dialog}
-      <button type="button" className="btn small primary" onClick={onRetry} disabled={retry.isPending}>
-        Retry step {n}
-      </button>
     </>
   );
 };

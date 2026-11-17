@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { HistoryItem, Meta, RecordRow, ShownStatus } from '../api.ts';
-import { duration, when, who } from '../lib/format.ts';
-import { FnTitle } from './FnTitle.tsx';
+import type { Meta, RecordRow, ShownStatus } from '../api.ts';
+import { who } from '../lib/format.ts';
 
 /** The pill class for a run, flow or step status: `stopped` takes the `interrupted` colour, `waiting` and `skipped` none. */
 export const pillOf = (status: string): string => ({ stopped: 'interrupted', waiting: '', skipped: '' })[status] ?? status;
@@ -91,51 +90,3 @@ export const RecordCard = ({ made, full, meta }: { made: { kind: string; ref: st
   );
 };
 
-/** Runs as a table; a row opens that run. */
-export const HistoryTable = ({ runs, onOpen }: { runs: HistoryItem[]; onOpen: (id: string) => void }) => (
-  <table>
-    <thead>
-      <tr>
-        <th>Started</th>
-        <th>Function</th>
-        <th>Parameters</th>
-        <th>Result</th>
-        <th>Took</th>
-        <th>Made</th>
-      </tr>
-    </thead>
-    <tbody>
-      {runs.map((r) => (
-        <tr key={r.id} className="click" onClick={() => onOpen(r.id)}>
-          <td className="muted nowrap">{when(r.startedAt)}</td>
-          <td className="nowrap">
-            <b>
-              <FnTitle title={r.title} />
-            </b>
-            {r.env && (
-              <>
-                {' '}
-                <EnvChip env={r.env} />
-              </>
-            )}
-          </td>
-          <td>
-            {r.summary}
-            {r.view?.failures?.[0] && <div className="hint bad-text">✗ {r.view.failures[0].title}</div>}
-          </td>
-          <td>
-            <StatusPill status={r.status} />
-          </td>
-          <td className="muted">{r.endedAt ? duration(r.endedAt - r.startedAt) : ''}</td>
-          <td>
-            {(r.records ?? []).map((x) => (
-              <span key={x.ref} className="chip mono" title={x.summary}>
-                {x.ref}
-              </span>
-            ))}
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-);

@@ -595,3 +595,9 @@ section.fn td:first-child, section.fn th:first-child { padding-left: 18px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+.flow-row .expander { padding: 0 6px; min-width: 22px; }
+.step-row td { background: var(--raised); font-size: 13px; }
+.step-row .step-cell { padding-left: 42px; }
+.retry-cell { display: block; margin-top: 6px; }
+.flow-note { display: flex; align-items: center; gap: 12px; justify-content: space-between; }

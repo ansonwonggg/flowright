@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { FieldJson, Presets } from '../api.ts';
-import { HistoryTable, kindLabel, RecordCard, StatusPill } from '../components/bits.tsx';
+import { kindLabel, RecordCard, StatusPill } from '../components/bits.tsx';
+import { HistoryTable } from '../components/HistoryTable.tsx';
 import { ValueInput } from '../components/ValueInput.tsx';
 import { FIELDS, FUNCTIONS, META, record, run } from '../lib/fixtures.test-utils.ts';
 import { ago, duration, who } from '../lib/format.ts';
 import { presetsFor } from './FunctionPage.tsx';
-import { matchesHistory } from './HistoryPage.tsx';
+import { historyRows, matchesHistory } from '../lib/historyRows.ts';
 import { cardNote, FunctionList } from './HomePage.tsx';
 
 const fnOf = (id: string) => FUNCTIONS.find((f) => f.id === id)!;
@@ -100,7 +101,7 @@ describe('bits', () => {
 
   it('HistoryTable shows the first failure and opens a run on click', async () => {
     const open = vi.fn();
-    render(<HistoryTable runs={[run({ status: 'failed', view: { failures: [{ title: 'A check failed' } as never] } })]} onOpen={open} />);
+    render(<HistoryTable rows={historyRows([run({ status: 'failed', view: { failures: [{ title: 'A check failed' } as never] } })], [])} onOpenRun={open} onOpenFlow={() => {}} />);
     expect(screen.getByText('✗ A check failed')).toBeInTheDocument();
     expect(screen.getByText('1m05s')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('row', { name: /Register/ }));
@@ -108,7 +109,7 @@ describe('bits', () => {
   });
 
   it('HistoryTable leaves the duration blank for a run without an end', () => {
-    render(<HistoryTable runs={[run({ endedAt: undefined, status: 'running' })]} onOpen={() => {}} />);
+    render(<HistoryTable rows={historyRows([run({ endedAt: undefined, status: 'running' })], [])} onOpenRun={() => {}} onOpenFlow={() => {}} />);
     expect(screen.queryByText(/\d+s$/)).not.toBeInTheDocument();
   });
 

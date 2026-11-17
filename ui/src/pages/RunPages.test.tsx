@@ -30,9 +30,9 @@ const flowRun = (over: Partial<FlowRun> = {}): FlowRun => ({
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-type Server = { run?: RunInfo; flow?: FlowRun; retry?: Response };
+type Server = { run?: RunInfo; flow?: FlowRun; flows?: FlowRun[]; retry?: Response };
 
-const serve = ({ run = fnRun(), flow = flowRun(), retry }: Server) => {
+const serve = ({ run = fnRun(), flow = flowRun(), flows = [], retry }: Server) => {
   const fetch = vi.fn(async (url: string, init?: RequestInit) => {
     const path = String(url);
     if (path === '/api/meta') return json(META);
@@ -40,6 +40,7 @@ const serve = ({ run = fnRun(), flow = flowRun(), retry }: Server) => {
     if (path === '/api/run/stop' && init?.method === 'POST') return json({ id: run.id });
     if (path.endsWith('/retry') && init?.method === 'POST') return retry ?? json({ id: flow.id }, 202);
     if (path.startsWith('/api/runs/')) return json({ run, log: ['line 1'] });
+    if (path === '/api/flow-runs') return json(flows);
     if (path.startsWith('/api/flow-runs/')) return json(flow);
     return json({ error: `unexpected ${path}` }, 404);
   });
@@ -169,10 +170,59 @@ describe('RunPage', () => {
   it('opened from a flow step whose flow run is gone, it still links back', async () => {
     const fetch = serve({});
     fetch.mockImplementation(async (url: string) =>
-      String(url).startsWith('/api/flow-runs/') ? json({ error: 'No such flow run.' }, 404) : String(url) === '/api/meta' ? json(META) : String(url) === '/api/records' ? json([]) : json({ run: fnRun(), log: [] }),
+      String(url).startsWith('/api/flow-runs/') ? json({ error: 'No such flow run.' }, 404) : String(url) === '/api/flow-runs' ? json([]) : String(url) === '/api/meta' ? json(META) : String(url) === '/api/records' ? json([]) : json({ run: fnRun(), log: [] }),
     );
     at(`/run/${RUN_ID}?flow=${FLOW_ID}`);
     expect(await screen.findByRole('link', { name: '← Flow run' })).toHaveAttribute('href', `/flow-run/${FLOW_ID}`);
+  });
+
+  it('opened from History, a run a flow made still finds its flow: back link and a "Step N of" note', async () => {
+    serve({ flows: [flowRun({ id: '20261105-100000-zzzz', steps: [] }), failedAtVet()] });
+    at(`/run/${RUN_ID}`);
+    const note = await screen.findByTestId('flow-note');
+    expect(note).toHaveTextContent('Step 1 of flow New ER user.');
+    expect(within(note).getByRole('link', { name: 'New ER user' })).toHaveAttribute('href', `/flow-run/${FLOW_ID}`);
+    expect(screen.getByRole('link', { name: '← New ER user' })).toHaveAttribute('href', `/flow-run/${FLOW_ID}`);
+  });
+
+  it('the note on a failed flow offers Retry, which asks and then retries the flow', async () => {
+    const vetRun = '20261105-120100-bbbb';
+    const failed = failedAtVet({ steps: failedAtVet().steps.map((s, i) => (i === 1 ? { ...s, runId: vetRun } : s)) });
+    const fetch = serve({ run: fnRun({ id: vetRun, status: 'failed' }), flows: [failed], flow: failed });
+    at(`/run/${vetRun}`);
+    const note = await screen.findByTestId('flow-note');
+    expect(note).toHaveClass('bad');
+    expect(note).toHaveTextContent('Step 2 of flow New ER user.');
+    await userEvent.click(within(note).getByRole('button', { name: 'Retry step 2' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Retry' }));
+    expect(retryCalls(fetch)).toHaveLength(1);
+    expect(retryCalls(fetch)[0][0]).toBe(`/api/flow-runs/${FLOW_ID}/retry`);
+  });
+
+  it('an earlier try of a retried step says so and has no Retry', async () => {
+    const oldTry = '20261105-115900-tttt';
+    const retried = failedAtVet({ steps: failedAtVet().steps.map((s, i) => (i === 1 ? { ...s, tries: [{ status: 'failed' as const, runId: oldTry }] } : s)) });
+    serve({ run: fnRun({ id: oldTry, status: 'failed' }), flows: [retried] });
+    at(`/run/${oldTry}`);
+    const note = await screen.findByTestId('flow-note');
+    expect(note).toHaveTextContent('Step 2 of flow New ER user, an earlier try; the step was retried since.');
+    expect(within(note).queryByRole('button', { name: /Retry/ })).toBeNull();
+  });
+
+  it('a passed flow\'s step has the note without Retry', async () => {
+    serve({ flows: [flowRun()] });
+    at(`/run/${RUN_ID}`);
+    const note = await screen.findByTestId('flow-note');
+    expect(note).toHaveClass('info');
+    expect(within(note).queryByRole('button', { name: /Retry/ })).toBeNull();
+  });
+
+  it('a run no flow made has no note', async () => {
+    serve({ flows: [flowRun({ steps: [] })] });
+    at(`/run/${RUN_ID}`);
+    await screen.findByTestId('run-status');
+    expect(screen.queryByTestId('flow-note')).toBeNull();
+    expect(screen.getByRole('link', { name: '← History' })).toBeInTheDocument();
   });
 
   it('each input can be copied', async () => {

@@ -523,7 +523,7 @@ const ROUTES: Record<string, Handler> = {
     return json(res, 200, { errors: flowProblems(METAS, FIELDS, def), warnings: flowWarnings(def) });
   },
   'POST /api/flow/run': postFlowRun,
-  'GET /api/flow-runs': (_req, res) => json(res, 200, listFlowRuns(ROOT)),
+  'GET /api/flow-runs': (_req, res) => json(res, 200, listFlowRuns(ROOT, 200)),
   'GET /api/environments': (_req, res) => json(res, 200, environments()),
   'POST /api/environments/active': async (req, res) => {
     const [status, body] = chooseEnvironment(await readBody(req));
